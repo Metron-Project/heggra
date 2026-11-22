@@ -20,7 +20,7 @@ def test_round_trip():
     assert file.size == 5
     assert file.content_type == "text/plain"
     assert file.read() == b"hello"
-    assert file.heggra_token == token
+    assert file.token == token
 
 
 def test_file_is_saved_under_the_temporary_folder(media_root):

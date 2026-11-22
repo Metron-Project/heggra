@@ -30,6 +30,14 @@ class Rules(TypedDict):
     image: bool
 
 
+class TemporaryUpload(UploadedFile):
+    """A file waiting in temporary storage, with the token that refers to it."""
+
+    def __init__(self, token: str, **kwargs: Any) -> None:
+        super().__init__(**kwargs)
+        self.token = token
+
+
 def get_storage() -> Storage:
     """Return the storage that holds uploads until their form is saved."""
     return storages[getattr(settings, "HEGGRA_STORAGE", "default")]
@@ -57,11 +65,8 @@ def load_token(token: str) -> dict[str, Any] | None:
         return None
 
 
-def open_token(token: str, rules: Rules) -> UploadedFile | None:
-    """Open the upload behind ``token``, if the token is valid and was issued for ``rules``.
-
-    The file carries the token as ``heggra_token``, so a form shown again keeps the upload.
-    """
+def open_token(token: str, rules: Rules) -> TemporaryUpload | None:
+    """Open the upload behind ``token``, if the token is valid and was issued for ``rules``."""
     payload = load_token(token)
     if payload is None or payload["rules"] != rules:
         return None
@@ -72,9 +77,9 @@ def open_token(token: str, rules: Rules) -> UploadedFile | None:
     except FileNotFoundError:
         return None
     content_type = payload["type"] or mimetypes.guess_type(payload["name"])[0]
-    file = UploadedFile(content, payload["name"], content_type, size)
-    file.heggra_token = token  # pyright: ignore[reportAttributeAccessIssue]
-    return file
+    return TemporaryUpload(
+        token, file=content, name=payload["name"], content_type=content_type, size=size
+    )
 
 
 def upload_context(name: str, size: int, token: str, rules: Rules) -> dict[str, Any]:
