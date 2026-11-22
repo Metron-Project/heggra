@@ -1,0 +1,158 @@
+[project]
+name = "heggra"
+version = "0.1.0"
+description = "An htmx-powered file upload widget for Django forms"
+readme = "README.md"
+license = "GPL-3.0-or-later"
+license-files = ["LICENSE"]
+authors = [
+    { name = "Brian Pepple", email = "bpepple@metron.cloud" }
+]
+keywords = ["django", "htmx", "upload", "widget", "forms"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Web Environment",
+    "Framework :: Django",
+    "Framework :: Django :: 6.0",
+    "Framework :: Django :: 6.1",
+    "Intended Audience :: Developers",
+    "Natural Language :: English",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3.14",
+    "Programming Language :: Python :: 3.15",
+    "Topic :: Internet :: WWW/HTTP :: Dynamic Content",
+]
+requires-python = ">=3.14"
+dependencies = [
+    "django>=6.0.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/Metron-Project/heggra"
+Documentation = "https://heggra.readthedocs.io/"
+"Bug Tracker" = "https://github.com/Metron-Project/heggra/issues"
+Changelog = "https://github.com/Metron-Project/heggra/blob/main/CHANGELOG.md"
+
+[build-system]
+requires = ["uv_build>=0.13.6,<0.14.0"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-root = ""
+
+[tool.coverage.run]
+source = ["heggra"]
+branch = true
+
+[tool.coverage.report]
+show_missing = true
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "tests.settings"
+addopts = "--cov"
+django_find_project = false
+pythonpath = ["."]
+testpaths = ["tests"]
+
+[tool.pyright]
+include = ["heggra"]
+pythonVersion = "3.14"
+typeCheckingMode = "standard"
+
+[tool.ruff]
+line-length = 100
+target-version = "py314"
+
+[tool.ruff.lint]
+# Added to ruff's defaults, which only cover part of most of these families.
+extend-select = [
+    "A",     # flake8-builtins
+    "ANN",   # flake8-annotations
+    "B",     # flake8-bugbear
+    "C4",    # flake8-comprehensions
+    "C90",   # mccabe
+    "D",     # pydocstyle
+    "DJ",    # flake8-django
+    "DTZ",   # flake8-datetimez
+    "E",     # pycodestyle errors
+    "ERA",   # eradicate
+    "F",     # pyflakes
+    "FBT",   # flake8-boolean-trap
+    "FURB",  # refurb
+    "G",     # flake8-logging-format
+    "I",     # isort
+    "INP",   # flake8-no-pep420
+    "ISC",   # flake8-implicit-str-concat
+    "LOG",   # flake8-logging
+    "N",     # pep8-naming
+    "PERF",  # perflint
+    "PGH",   # pygrep-hooks
+    "PIE",   # flake8-pie
+    "PL",    # pylint
+    "PT",    # flake8-pytest-style
+    "PTH",   # flake8-use-pathlib
+    "RET",   # flake8-return
+    "RSE",   # flake8-raise
+    "RUF",   # ruff
+    "S",     # flake8-bandit
+    "SIM",   # flake8-simplify
+    "SLF",   # flake8-self
+    "T20",   # flake8-print
+    "TID",   # flake8-tidy-imports
+    "TRY",   # tryceratops
+    "UP",    # pyupgrade
+    "W",     # pycodestyle warnings
+]
+ignore = [
+    "ANN401",  # Widget values are opaque to heggra.
+    "D106",    # Nested Media and Meta classes are Django configuration.
+    "D107",    # The class docstring covers __init__.
+    "TRY003",  # Short messages at the raise site read better than an exception per message.
+]
+
+[tool.ruff.lint.flake8-self]
+# Underscored, but documented public API on Django models.
+extend-ignore-names = ["_default_manager", "_meta"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "pep257"
+
+[tool.ruff.lint.per-file-ignores]
+"docs/conf.py" = [
+    "INP001",   # Sphinx loads conf.py by path, not as a package.
+]
+"example/*" = [
+    "D104",     # Empty package markers.
+    "D105",     # __str__ needs no explanation.
+    "RUF012",   # Lists in Meta and lookups are Django configuration.
+]
+"example/*/migrations/*" = [
+    "ANN",      # Generated, or written in the same style.
+    "D",        # Likewise.
+]
+"tests/*" = [
+    "ANN",      # Test names and fixtures already say what these would.
+    "D",        # Likewise.
+    "DJ008",    # Test models only need __str__ where a test reads it.
+    "PLR2004",  # Literal expected values are the point of an assertion.
+    "RUF012",
+    "S101",     # pytest asserts.
+    "S105",     # The test settings' SECRET_KEY.
+    "SLF001",   # Tests may inspect private state.
+]
+
+[dependency-groups]
+dev = [
+    "django-stubs>=6.1.2",
+    "pre-commit>=4.7.0",
+    "pyright>=1.1.414",
+    "pytest-cov>=7.1.0",
+    "pytest-django>=4.14.0",
+    "ruff>=0.17.3",
+    "selenium>=4.52.0",
+]
+docs = [
+    "furo>=2025.12.19",
+    "myst-parser>=5.1.0",
+    "sphinx>=9.2.0",
+]

@@ -1,0 +1,37 @@
+name: Python package
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+jobs:
+  run:
+    name: Build and publish release
+    runs-on: ubuntu-latest
+    # Protection rules on this environment, such as required reviewers, gate every upload.
+    environment:
+      name: pypi
+      url: https://pypi.org/project/heggra/
+    permissions:
+      contents: read
+      id-token: write # Lets PyPI verify this workflow, so no API token is needed.
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      # A restored cache could carry tampered packages into the release, so build from scratch.
+      - name: Install uv
+        uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
+        with:
+          enable-cache: false
+      - name: Set up Python
+        run: uv python install 3.14
+      # PyPI never lets a version be replaced, so stop before uploading the wrong one.
+      - name: Check tag matches version
+        run: test "v$(uv version --short)" = "$GITHUB_REF_NAME"
+      - name: Build
+        run: uv build
+      - name: Publish
+        run: uv publish --trusted-publishing always
