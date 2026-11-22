@@ -1,0 +1,48 @@
+{% extends "comics/base.html" %}
+
+{% block title %}{% if object %}Edit {{ object }}{% else %}New issue{% endif %}{% endblock %}
+
+{# The widget's media is heggra.js, which every page with an UploadWidget needs. #}
+{% block head %}{{ form.media }}{% endblock %}
+
+{% block content %}
+  <p class="block"><a href="{% url 'issue-list' %}">← All issues</a></p>
+  <h1 class="title">{% if object %}Edit {{ object }}{% else %}New issue{% endif %}</h1>
+  {# The upload requests send the form's CSRF token, and the multipart encoding lets files #}
+  {# go up with the form when the script hasn't run. #}
+  <form class="block" method="post" enctype="multipart/form-data" novalidate>
+    {% csrf_token %}
+    {% for field in form %}
+      <div class="field">
+        <label class="label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+        <div class="control">{{ field }}</div>
+        {% if field.help_text %}<p class="help">{{ field.help_text }}</p>{% endif %}
+        {% for error in field.errors %}<p class="help is-danger">{{ error }}</p>{% endfor %}
+      </div>
+    {% endfor %}
+    <button class="button is-primary" type="submit">Save</button>
+  </form>
+
+  <section class="block">
+    <h2 class="subtitle">Events</h2>
+    <p class="help">
+      Each widget dispatches bubbling <code>heggra:upload</code>, <code>heggra:error</code> and
+      <code>heggra:remove</code> events, with details in <code>event.detail</code>.
+    </p>
+    <ol class="content" id="events"></ol>
+  </section>
+  <script>
+    const describe = {
+      "heggra:upload": (detail) => `${detail.name} uploaded`,
+      "heggra:error": (detail) => detail.message,
+      "heggra:remove": (detail) => `${detail.name} removed`,
+    };
+    for (const [name, text] of Object.entries(describe)) {
+      document.addEventListener(name, (event) => {
+        const entry = document.createElement("li");
+        entry.textContent = `${name}: ${text(event.detail)}`;
+        document.getElementById("events").prepend(entry);
+      });
+    }
+  </script>
+{% endblock %}

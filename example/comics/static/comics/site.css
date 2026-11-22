@@ -1,0 +1,32 @@
+/* The few things Bulma has no class for. Everything else comes from HEGGRA_CLASSES. */
+
+/* The current and uploaded file: preview, name, size and buttons in a row. */
+.heggra-current,
+.heggra-file {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+/* Previews keep their shape, unlike Bulma's fixed-size .image classes. */
+.heggra-preview,
+.thumbnail {
+  max-width: 8rem;
+  max-height: 8rem;
+}
+
+.thumbnail {
+  max-height: 4rem;
+}
+
+.heggra-progress {
+  margin-top: 0.75rem;
+}
+
+/* Bulma's boxed file element shrinks to its text; let it fill the field as a drop target. */
+.heggra-dropzone,
+.heggra-dropzone .file-label {
+  width: 100%;
+}

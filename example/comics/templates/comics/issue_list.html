@@ -1,0 +1,24 @@
+{% extends "comics/base.html" %}
+
+{% block title %}Issues{% endblock %}
+
+{% block content %}
+  <h1 class="title">Issues</h1>
+  <p class="block"><a class="button is-primary" href="{% url 'issue-create' %}">New issue</a></p>
+  <table class="table is-fullwidth is-hoverable">
+    <thead>
+      <tr><th>Cover</th><th>Issue</th><th>Script</th></tr>
+    </thead>
+    <tbody>
+      {% for issue in object_list %}
+        <tr>
+          <td><img class="thumbnail" src="{{ issue.cover.url }}" alt=""></td>
+          <td><a href="{{ issue.get_absolute_url }}">{{ issue }}</a></td>
+          <td>{% if issue.script %}<a href="{{ issue.script.url }}">{{ issue.script.name|cut:"scripts/" }}</a>{% else %}<span class="has-text-grey">None</span>{% endif %}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="3">No issues yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% endblock %}

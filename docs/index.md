@@ -12,6 +12,7 @@ usage
 styling
 javascript
 security
+example
 api
 development
 changelog

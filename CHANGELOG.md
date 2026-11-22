@@ -8,3 +8,4 @@
 - Add the upload and preview views, the `heggra_cleanup` command, and the `HEGGRA_CLASSES`,
   `HEGGRA_STORAGE`, `HEGGRA_MAX_AGE` and `HEGGRA_LOGIN_REQUIRED` settings
 - Add the optional `heggra/layout.css`
+- Add an example project styled with Bulma
