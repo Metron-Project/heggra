@@ -1,0 +1,113 @@
+"""Temporary storage for files uploaded ahead of the form they belong to."""
+
+import contextlib
+import mimetypes
+import uuid
+from datetime import datetime, timedelta
+from pathlib import Path, PurePosixPath
+from typing import Any, TypedDict
+
+from django.conf import settings
+from django.core import signing
+from django.core.files.storage import FileSystemStorage, Storage, storages
+from django.core.files.uploadedfile import UploadedFile
+from django.urls import reverse
+from django.utils import timezone
+from django.utils.text import get_valid_filename
+
+TEMP_DIR = "heggra"
+TOKEN_SALT = "heggra.upload"  # noqa: S105 - a signing namespace, not a secret.
+CONFIG_SALT = "heggra.config"
+DEFAULT_MAX_AGE = 60 * 60 * 24
+
+
+class Rules(TypedDict):
+    """What a widget accepts, which an upload's token is bound to."""
+
+    name: str
+    max_size: int | None
+    accept: list[str]
+    image: bool
+
+
+def get_storage() -> Storage:
+    """Return the storage that holds uploads until their form is saved."""
+    return storages[getattr(settings, "HEGGRA_STORAGE", "default")]
+
+
+def get_max_age() -> int:
+    """Return how many seconds an upload stays usable."""
+    return getattr(settings, "HEGGRA_MAX_AGE", DEFAULT_MAX_AGE)
+
+
+def save_temporary(file: UploadedFile, rules: Rules) -> str:
+    """Save ``file`` to temporary storage and return a signed token for it."""
+    name = PurePosixPath(file.name or "").name
+    name = get_valid_filename(name) if name.strip(" .") else "upload"
+    path = get_storage().save(f"{TEMP_DIR}/{uuid.uuid4().hex}/{name}", file)
+    payload = {"path": path, "name": name, "type": file.content_type, "rules": rules}
+    return signing.dumps(payload, salt=TOKEN_SALT, compress=True)
+
+
+def load_token(token: str) -> dict[str, Any] | None:
+    """Return a token's payload, or ``None`` if it is invalid or expired."""
+    try:
+        return signing.loads(token, salt=TOKEN_SALT, max_age=get_max_age())
+    except signing.BadSignature:
+        return None
+
+
+def open_token(token: str, rules: Rules) -> UploadedFile | None:
+    """Open the upload behind ``token``, if the token is valid and was issued for ``rules``.
+
+    The file carries the token as ``heggra_token``, so a form shown again keeps the upload.
+    """
+    payload = load_token(token)
+    if payload is None or payload["rules"] != rules:
+        return None
+    storage = get_storage()
+    try:
+        content = storage.open(payload["path"], "rb")
+        size = storage.size(payload["path"])
+    except FileNotFoundError:
+        return None
+    content_type = payload["type"] or mimetypes.guess_type(payload["name"])[0]
+    file = UploadedFile(content, payload["name"], content_type, size)
+    file.heggra_token = token  # pyright: ignore[reportAttributeAccessIssue]
+    return file
+
+
+def upload_context(name: str, size: int, token: str, rules: Rules) -> dict[str, Any]:
+    """Return the template context describing an upload."""
+    return {
+        "field_name": rules["name"],
+        "name": name,
+        "preview_url": reverse("heggra:preview", args=[token]) if rules["image"] else None,
+        "size": size,
+        "token": token,
+    }
+
+
+def cleanup(now: datetime | None = None) -> int:
+    """Delete uploads older than ``HEGGRA_MAX_AGE`` and return how many were deleted."""
+    storage = get_storage()
+    cutoff = (now or timezone.now()) - timedelta(seconds=get_max_age())
+    deleted = 0
+    folders, _ = storage.listdir(TEMP_DIR) if storage.exists(TEMP_DIR) else ([], [])
+    for folder in folders:
+        folder_path = f"{TEMP_DIR}/{folder}"
+        _, files = storage.listdir(folder_path)
+        for filename in files:
+            path = f"{folder_path}/{filename}"
+            if storage.get_modified_time(path) < cutoff:
+                storage.delete(path)
+                deleted += 1
+        _remove_empty_folder(storage, folder_path)
+    return deleted
+
+
+def _remove_empty_folder(storage: Storage, path: str) -> None:
+    # Only the filesystem leaves empty folders behind. A folder still holding newer files stays.
+    if isinstance(storage, FileSystemStorage):
+        with contextlib.suppress(OSError):
+            Path(storage.path(path)).rmdir()
