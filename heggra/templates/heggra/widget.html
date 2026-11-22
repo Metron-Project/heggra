@@ -1,4 +1,4 @@
-<div class="heggra {{ widget.classes.root }}" data-heggra data-heggra-active-class="heggra-dragover {{ widget.classes.dropzone_active }}"{% if widget.max_size %} data-heggra-max-size="{{ widget.max_size }}" data-heggra-too-large="{{ widget.too_large_text }}"{% endif %} data-heggra-failed="{{ widget.failed_text }}">
+<div class="heggra {{ widget.classes.root }}" data-heggra data-heggra-active-class="heggra-dragover {{ widget.classes.dropzone_active }}"{% if widget.max_size %} data-heggra-max-size="{{ widget.max_size }}" data-heggra-too-large="{{ widget.too_large_text }}"{% endif %} data-heggra-failed="{{ widget.failed_text }}" data-heggra-error-class="{{ widget.classes.error }}">
   {% if widget.is_initial %}
   <div class="heggra-current {{ widget.classes.current }}" data-heggra-current>
     {% if widget.is_image %}<img class="heggra-preview {{ widget.classes.preview }}" src="{{ widget.value.url }}" alt="">{% endif %}

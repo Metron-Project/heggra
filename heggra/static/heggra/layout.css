@@ -1,0 +1,46 @@
+/* Optional. A dashed drop target, a visible focus ring and a bounded preview. Every rule is in
+   :where(), so any host class overrides it whatever order the stylesheets load in. */
+:where(.heggra-dropzone) {
+  display: block;
+  padding: 1.5rem;
+  border: 2px dashed var(--heggra-border-color, GrayText);
+  border-radius: 0.5rem;
+  text-align: center;
+}
+
+:where(.heggra-dropzone.heggra-dragover) {
+  border-color: var(--heggra-active-color, Highlight);
+}
+
+:where(.heggra-dropzone:has(.heggra-input:focus-visible)) {
+  outline: 2px solid var(--heggra-active-color, Highlight);
+  outline-offset: 2px;
+}
+
+:where(.heggra-label) {
+  position: relative;
+  cursor: pointer;
+}
+
+/* Hidden from sight but not from the keyboard, so the dropzone stands in for it. */
+:where(.heggra-input) {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  overflow: hidden;
+}
+
+:where(.heggra-current, .heggra-file) {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+:where(.heggra-preview) {
+  display: block;
+  max-width: var(--heggra-preview-size, 10rem);
+  max-height: var(--heggra-preview-size, 10rem);
+}

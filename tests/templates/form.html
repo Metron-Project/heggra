@@ -1,0 +1,15 @@
+{% load static %}<!doctype html>
+<html>
+  <head>
+    <title>heggra</title>
+    {{ form.media }}
+    <script src="{% static 'htmx.min.js' %}"></script>
+  </head>
+  <body>
+    <form id="form" method="post" novalidate enctype="multipart/form-data">
+      {% csrf_token %}
+      {{ form.as_div }}
+      <button type="submit" id="submit">Save</button>
+    </form>
+  </body>
+</html>
