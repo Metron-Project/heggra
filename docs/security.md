@@ -15,12 +15,30 @@ an image's preview. heggra only ever gives a token to the browser that uploaded 
 The widget's rules reach the upload view signed, so a client can't loosen them. The signature
 expires after `HEGGRA_MAX_AGE`, like a token's, so a copied page can't be used to upload forever,
 and a page left open longer than that must be reloaded before uploading. The view is protected by
-Django's CSRF check like any other POST, but it accepts uploads from anyone who can load a form.
-Set `HEGGRA_LOGIN_REQUIRED = True` to refuse anonymous uploads.
+Django's CSRF check like any other POST, and only logged-in users can upload unless
+`HEGGRA_LOGIN_REQUIRED` is `False`.
 
-The view checks `max_size` only once Django has received the whole file, and Django's
-`DATA_UPLOAD_MAX_MEMORY_SIZE` doesn't cover files. Limit the size of request bodies in your web
-server too, for example with nginx's `client_max_body_size`.
+## Limiting uploads
+
+The upload view saves a file before any form is submitted, so whoever can upload can fill
+temporary storage. By default that is only logged-in users. With `HEGGRA_LOGIN_REQUIRED = False`,
+it is anyone who can load a page with the widget: the signed config a page carries can't be tied
+to a visitor, because anyone can load the page for a new one. heggra doesn't limit how many files a
+client uploads, so on a site that lets anyone upload:
+
+- Give every widget a `max_size`. Without one, a file can be as large as your web server allows.
+- Limit the size of request bodies in your web server, for example with nginx's
+  `client_max_body_size`. The view checks `max_size` only once Django has received the whole file,
+  and Django's `DATA_UPLOAD_MAX_MEMORY_SIZE` doesn't cover files.
+- Rate-limit `POST` requests to the upload URL, in your web server or a middleware, for example
+  per IP address.
+- Run `heggra_cleanup` often, such as hourly, and consider a shorter `HEGGRA_MAX_AGE`, so refused
+  and abandoned uploads leave sooner. Uploads stay for `HEGGRA_MAX_AGE` plus an hour, and pages
+  left open longer than `HEGGRA_MAX_AGE` must be reloaded before uploading.
+- Point `HEGGRA_STORAGE` at a storage with a quota, or on its own disk or bucket, so a full
+  temporary storage can't stop the rest of the site saving files.
+
+The web server body limit and `max_size` apply when only logged-in users can upload, too.
 
 ## Temporary storage
 

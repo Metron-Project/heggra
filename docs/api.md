@@ -20,7 +20,9 @@
 : How many seconds an upload's token works for. Defaults to `86400`, one day.
 
 `HEGGRA_LOGIN_REQUIRED`
-: When `True`, anonymous users can't upload files or view previews. Defaults to `False`.
+: When `True`, anonymous users can't upload files or view previews. Defaults to `True`. Set it to
+  `False` to let anyone who can load a form upload files. See
+  [Security](security.md#limiting-uploads).
 
 ## URLs
 
@@ -41,4 +43,5 @@
 : `HEGGRA_STORAGE` isn't in `STORAGES`.
 
 `heggra.W001`
-: `HEGGRA_LOGIN_REQUIRED` is set, but `AuthenticationMiddleware` isn't in `MIDDLEWARE`.
+: `HEGGRA_LOGIN_REQUIRED` is `True`, as it is by default, but `AuthenticationMiddleware` isn't
+  in `MIDDLEWARE`.

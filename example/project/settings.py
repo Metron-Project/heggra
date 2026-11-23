@@ -39,6 +39,8 @@ STORAGES = {
     },
 }
 HEGGRA_STORAGE = "uploads"
+# The example has no accounts, so anyone can upload. A real site with logins leaves this out.
+HEGGRA_LOGIN_REQUIRED = False
 
 # Bulma classes for heggra's elements, which otherwise carry only their heggra-* classes. Bulma's
 # file element has the same structure as the widget, with the file input inside its label, and

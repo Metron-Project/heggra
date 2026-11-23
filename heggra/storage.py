@@ -110,6 +110,11 @@ def get_max_age() -> int:
     return getattr(settings, "HEGGRA_MAX_AGE", DEFAULT_MAX_AGE)
 
 
+def get_login_required() -> bool:
+    """Return whether only logged-in users can upload files and view previews."""
+    return getattr(settings, "HEGGRA_LOGIN_REQUIRED", True)
+
+
 def clean_name(name: str) -> str:
     """Return ``name`` made safe to store, or ``"upload"`` if nothing of it is."""
     name = PurePosixPath(name).name

@@ -151,6 +151,12 @@ def test_image_upload_has_a_preview(client):
     assert f'src="{reverse("heggra:preview", args=[token])}"' in html
 
 
+def test_login_is_required_by_default(client, settings):
+    del settings.HEGGRA_LOGIN_REQUIRED
+    assert_error(post(client, text_file()), 403, "Log in to upload files.")
+    assert client.get(reverse("heggra:preview", args=[image_token()])).status_code == 404
+
+
 def test_login_required(client, settings):
     settings.HEGGRA_LOGIN_REQUIRED = True
     assert_error(post(client, text_file()), 403, "Log in to upload files.")

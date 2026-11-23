@@ -26,5 +26,9 @@ urlpatterns = [
 {{ form.media }}
 ```
 
+Only logged-in users can upload files by default, which needs `django.contrib.auth` and its
+`AuthenticationMiddleware`. For forms anyone can fill in, set `HEGGRA_LOGIN_REQUIRED = False`, and
+read [Limiting uploads](security.md#limiting-uploads) first.
+
 Uploads wait in temporary storage until their form is saved, so schedule the
 [cleanup command](usage.md#cleaning-up) to run regularly.

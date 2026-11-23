@@ -4,7 +4,6 @@ import re
 from typing import Any
 
 from django import forms
-from django.conf import settings
 from django.core import signing
 from django.core.exceptions import ValidationError
 from django.core.files.uploadedfile import UploadedFile
@@ -26,6 +25,7 @@ from django.views.decorators.http import require_GET, require_POST
 from .storage import (
     CONFIG_SALT,
     Rules,
+    get_login_required,
     get_max_age,
     get_storage,
     has_preview,
@@ -36,7 +36,7 @@ from .storage import (
 
 
 def _login_required(request: HttpRequest) -> bool:
-    return getattr(settings, "HEGGRA_LOGIN_REQUIRED", False) and not request.user.is_authenticated
+    return get_login_required() and not request.user.is_authenticated
 
 
 def _error(

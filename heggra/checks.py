@@ -8,6 +8,8 @@ from django.conf import settings
 from django.core.checks import Error
 from django.core.checks import Warning as CheckWarning
 
+from .storage import get_login_required
+
 AUTHENTICATION_MIDDLEWARE = "django.contrib.auth.middleware.AuthenticationMiddleware"
 
 
@@ -29,16 +31,17 @@ def check_login_required(
     app_configs: Sequence[AppConfig] | None, **kwargs: Any
 ) -> list[CheckWarning]:
     """Return a warning if ``HEGGRA_LOGIN_REQUIRED`` can't read ``request.user``."""
-    if not getattr(settings, "HEGGRA_LOGIN_REQUIRED", False):
+    if not get_login_required():
         return []
     if AUTHENTICATION_MIDDLEWARE in settings.MIDDLEWARE:
         return []
     return [
         CheckWarning(
-            "HEGGRA_LOGIN_REQUIRED needs request.user, so uploads fail without "
-            "AuthenticationMiddleware.",
-            hint=f"Add {AUTHENTICATION_MIDDLEWARE!r} to MIDDLEWARE, or silence this check if "
-            "another middleware sets request.user.",
+            "HEGGRA_LOGIN_REQUIRED, which is True by default, needs request.user, so uploads "
+            "fail without AuthenticationMiddleware.",
+            hint=f"Add {AUTHENTICATION_MIDDLEWARE!r} to MIDDLEWARE, set HEGGRA_LOGIN_REQUIRED = "
+            "False to let anyone upload, or silence this check if another middleware sets "
+            "request.user.",
             id="heggra.W001",
         )
     ]
