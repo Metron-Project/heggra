@@ -22,7 +22,15 @@ from django.utils.translation import gettext as _
 from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_GET, require_POST
 
-from .storage import CONFIG_SALT, Rules, get_storage, load_token, save_temporary, upload_context
+from .storage import (
+    CONFIG_SALT,
+    Rules,
+    get_max_age,
+    get_storage,
+    load_token,
+    save_temporary,
+    upload_context,
+)
 
 
 def _login_required(request: HttpRequest) -> bool:
@@ -63,8 +71,13 @@ def validate(file: UploadedFile, rules: Rules, too_large_text: str | None = None
 @require_POST
 def upload(request: HttpRequest) -> HttpResponse:
     """Save the file a widget posted and render it, ready to be submitted with the form."""
+    # A config expires like a token, so one copied from a page doesn't allow uploads forever.
     try:
-        config = signing.loads(request.POST.get("heggra-config", ""), salt=CONFIG_SALT)
+        config = signing.loads(
+            request.POST.get("heggra-config", ""), salt=CONFIG_SALT, max_age=get_max_age()
+        )
+    except signing.SignatureExpired:
+        return _error(request, {}, [_("This page has expired. Reload it to upload files.")], 400)
     except signing.BadSignature:
         return HttpResponseBadRequest()
     if _login_required(request):

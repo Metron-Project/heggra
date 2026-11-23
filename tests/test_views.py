@@ -67,6 +67,14 @@ def test_bad_config(client, config):
     assert "X-Heggra-Error" not in response.headers
 
 
+def test_expired_config(client, settings):
+    settings.HEGGRA_MAX_AGE = -1
+    response = post(client, text_file())
+    assert response.status_code == 400
+    assert response.headers["X-Heggra-Error"] == "true"
+    assert "This page has expired. Reload it to upload files." in response.content.decode()
+
+
 def assert_error(response, status, message):
     assert response.status_code == status
     assert response.headers["X-Heggra-Error"] == "true"

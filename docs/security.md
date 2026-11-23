@@ -12,9 +12,11 @@ an image's preview. heggra only ever gives a token to the browser that uploaded 
 
 ## The upload view
 
-The widget's rules reach the upload view signed, so a client can't loosen them. The view is
-protected by Django's CSRF check like any other POST, but it accepts uploads from anyone who can
-load a form. Set `HEGGRA_LOGIN_REQUIRED = True` to refuse anonymous uploads.
+The widget's rules reach the upload view signed, so a client can't loosen them. The signature
+expires after `HEGGRA_MAX_AGE`, like a token's, so a copied page can't be used to upload forever,
+and a page left open longer than that must be reloaded before uploading. The view is protected by
+Django's CSRF check like any other POST, but it accepts uploads from anyone who can load a form.
+Set `HEGGRA_LOGIN_REQUIRED = True` to refuse anonymous uploads.
 
 The view checks `max_size` only once Django has received the whole file, and Django's
 `DATA_UPLOAD_MAX_MEMORY_SIZE` doesn't cover files. Limit the size of request bodies in your web
