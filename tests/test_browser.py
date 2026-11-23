@@ -212,6 +212,8 @@ def test_remove_cancels_an_upload_on_its_way(page, monkeypatch):
     time.sleep(1.5)
     assert widget.file_name is None
     assert [event["type"] for event in events(page)] == ["upload", "remove"]
+    # The cancelled upload's file mustn't go up with the form either.
+    assert widget.input.get_property("value") == ""
 
 
 def test_htmx_attributes_of_the_form_are_not_inherited(page, live_server):

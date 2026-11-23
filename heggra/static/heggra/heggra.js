@@ -165,6 +165,8 @@
     // An upload still on its way would otherwise bring a file back after it was removed.
     part(root, "input").dispatchEvent(new CustomEvent("htmx:abort", { bubbles: true, detail: {} }));
     part(root, "file").replaceChildren();
+    // The aborted upload's file would otherwise go up with the form.
+    part(root, "input").value = "";
     part(root, "input").focus();
     notify(root, "remove", { name });
   });
