@@ -51,7 +51,7 @@ required field reports that it is required, and an optional field keeps its curr
 | Argument | Purpose |
 | --- | --- |
 | `image` | Check that the file is an image Pillow can open, show a preview, and default the input's `accept` to `image/*`. Needs Pillow |
-| `max_size` | The largest file allowed, in bytes. Larger files are refused in the browser before sending, and again by the server |
+| `max_size` | The largest file allowed, in bytes, at least 1. Larger files are refused in the browser before sending, and again by the server |
 | `accept` | The allowed file extensions, with or without the dot and in any case, such as `["pdf", ".TXT"]`. Also sets the input's `accept` attribute |
 | `classes` | CSS classes for the widget's elements. See [Styling](styling.md) |
 | `attrs` | HTML attributes for the file input, as for any widget |

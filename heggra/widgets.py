@@ -65,6 +65,9 @@ class UploadWidget(forms.ClearableFileInput):
     ) -> None:
         if image and find_spec("PIL") is None:
             raise ImproperlyConfigured("UploadWidget(image=True) needs Pillow: heggra[image].")
+        # No file could pass a limit of 0, and the browser's check reads 0 as no limit.
+        if max_size is not None and max_size < 1:
+            raise ValueError("UploadWidget's max_size must be at least 1 byte.")
         super().__init__(attrs)
         self.image = image
         self.max_size = max_size

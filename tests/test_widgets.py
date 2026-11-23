@@ -45,6 +45,12 @@ def test_image_needs_pillow(monkeypatch):
         UploadWidget(image=True)
 
 
+@pytest.mark.parametrize("max_size", [0, -1])
+def test_max_size_must_be_positive(max_size):
+    with pytest.raises(ValueError, match="max_size"):
+        UploadWidget(max_size=max_size)
+
+
 def test_render():
     html = DocumentForm()["attachment"].as_widget()
     assert 'class="heggra ' in html
