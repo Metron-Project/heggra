@@ -43,20 +43,20 @@
     notify(root, "error", { message });
   };
 
-  // Only dropzones of enabled widgets take files, so the page doesn't open dropped files instead.
-  const dropzoneOf = (event) => {
-    const dropzone = event.target instanceof Element && event.target.closest("[data-heggra-dropzone]");
-    if (!dropzone || part(rootOf(dropzone), "input").disabled) return null;
-    return dropzone;
-  };
+  const dropzoneOf = (event) =>
+    (event.target instanceof Element && event.target.closest("[data-heggra-dropzone]")) || null;
+  const isDisabled = (dropzone) => part(rootOf(dropzone), "input").disabled;
 
+  // Every dropzone handles drops, so the browser doesn't open a dropped file and leave the page,
+  // but only those of enabled widgets take the file.
   for (const type of ["dragenter", "dragover"]) {
     document.addEventListener(type, (event) => {
       const dropzone = dropzoneOf(event);
       if (!dropzone) return;
       event.preventDefault();
-      event.dataTransfer.dropEffect = "copy";
-      setDragging(rootOf(dropzone), true);
+      const disabled = isDisabled(dropzone);
+      event.dataTransfer.dropEffect = disabled ? "none" : "copy";
+      if (!disabled) setDragging(rootOf(dropzone), true);
     });
   }
 
@@ -69,6 +69,7 @@
     const dropzone = dropzoneOf(event);
     if (!dropzone) return;
     event.preventDefault();
+    if (isDisabled(dropzone)) return;
     const root = rootOf(dropzone);
     setDragging(root, false);
     const [file] = event.dataTransfer.files;

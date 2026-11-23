@@ -39,7 +39,8 @@ const fire = (kind) => dropzone.dispatchEvent(
 fire("dragenter");
 fire("dragover");
 window.heggraDragging = dropzone.classList.contains("heggra-dragover");
-fire("drop");
+// dispatchEvent is false when a listener prevented the browser opening the file.
+window.heggraDropHandled = !fire("drop");
 """
 
 
@@ -114,7 +115,19 @@ def test_drop_a_file(page):
     widget.wait.until(lambda _: widget.file_name)
     assert widget.file_name == "dropped.txt"
     assert page.execute_script("return window.heggraDragging")
+    assert page.execute_script("return window.heggraDropHandled")
     assert "heggra-dragover" not in widget.dropzone.get_attribute("class")
+
+
+def test_disabled_widget_ignores_drops(page):
+    widget = Widget(page, "attachment")
+    page.execute_script("arguments[0].disabled = true", widget.input)
+    widget.drop("dropped.txt", "hello")
+    assert page.execute_script("return window.heggraDropHandled")
+    assert not page.execute_script("return window.heggraDragging")
+    time.sleep(0.5)
+    assert widget.file_name is None
+    assert events(page) == []
 
 
 def test_dragleave_resets_the_dropzone(page):
