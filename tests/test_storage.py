@@ -1,11 +1,19 @@
 from datetime import timedelta
 
+from django.core.files.storage import InMemoryStorage
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.utils import timezone
 
 from heggra import storage
 
 RULES = {"name": "attachment", "max_size": None, "accept": [], "image": False}
+
+
+class ObjectStorage(InMemoryStorage):
+    """A storage where heggra's folder doesn't exist, like a prefix on S3."""
+
+    def exists(self, name):
+        return name != storage.TEMP_DIR and super().exists(name)
 
 
 def upload(name="notes.txt", content=b"hello"):
@@ -96,4 +104,15 @@ def test_cleanup_with_storage_without_folders(settings):
     }
     settings.HEGGRA_STORAGE = "heggra"
     storage.save_temporary(upload(), RULES)
+    assert storage.cleanup(timezone.now() + timedelta(days=2)) == 1
+
+
+def test_cleanup_with_storage_whose_folders_dont_exist(settings):
+    settings.STORAGES = {
+        **settings.STORAGES,
+        "heggra": {"BACKEND": "tests.test_storage.ObjectStorage"},
+    }
+    settings.HEGGRA_STORAGE = "heggra"
+    storage.save_temporary(upload(), RULES)
+    assert not storage.get_storage().exists(storage.TEMP_DIR)
     assert storage.cleanup(timezone.now() + timedelta(days=2)) == 1

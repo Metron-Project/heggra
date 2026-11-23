@@ -98,7 +98,11 @@ def cleanup(now: datetime | None = None) -> int:
     storage = get_storage()
     cutoff = (now or timezone.now()) - timedelta(seconds=get_max_age())
     deleted = 0
-    folders, _ = storage.listdir(TEMP_DIR) if storage.exists(TEMP_DIR) else ([], [])
+    # Object storages such as S3 have no folders, so exists() is false for the prefix.
+    try:
+        folders, _ = storage.listdir(TEMP_DIR)
+    except FileNotFoundError:
+        return 0
     for folder in folders:
         folder_path = f"{TEMP_DIR}/{folder}"
         _, files = storage.listdir(folder_path)
