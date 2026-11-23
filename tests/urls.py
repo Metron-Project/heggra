@@ -6,7 +6,8 @@ from .forms import DocumentForm
 
 
 def document_form(request):
-    form = DocumentForm(request.POST or None, request.FILES or None)
+    auto_id = request.GET.get("auto_id", "id_%s")
+    form = DocumentForm(request.POST or None, request.FILES or None, auto_id=auto_id)
     if form.is_valid():
         document = form.save()
         return HttpResponse(f"saved {document.attachment.name} {document.cover.name}")

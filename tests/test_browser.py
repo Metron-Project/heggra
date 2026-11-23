@@ -44,9 +44,9 @@ fire("drop");
 
 
 class Widget:
-    def __init__(self, driver, field):
+    def __init__(self, driver, field, element_id=None):
         self.driver = driver
-        self.input = driver.find_element(By.ID, f"id_{field}")
+        self.input = driver.find_element(By.ID, element_id or f"id_{field}")
         self.root = self.input.find_element(By.XPATH, "ancestor::*[@data-heggra]")
         self.dropzone = self.root.find_element(By.CSS_SELECTOR, "[data-heggra-dropzone]")
         self.slot = self.root.find_element(By.CSS_SELECTOR, "[data-heggra-file]")
@@ -199,6 +199,13 @@ def test_remove_cancels_an_upload_on_its_way(page, monkeypatch):
     time.sleep(1.5)
     assert widget.file_name is None
     assert [event["type"] for event in events(page)] == ["upload", "remove"]
+
+
+def test_ids_with_selector_characters(page, live_server):
+    page.get(f"{live_server.url}/form/?auto_id=id.%s:x")
+    widget = Widget(page, "attachment", element_id="id.attachment:x")
+    widget.drop("notes.txt", "hello")
+    widget.wait.until(lambda _: widget.file_name == "notes.txt")
 
 
 def test_error_keeps_the_previous_upload(page):

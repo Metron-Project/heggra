@@ -8,7 +8,7 @@
   {% endif %}
   <div class="heggra-dropzone {{ widget.classes.dropzone }}" data-heggra-dropzone>
     <label class="heggra-label {{ widget.classes.label }}">
-      <input type="{{ widget.type }}" name="{{ widget.name }}" data-heggra-input hx-post="{{ widget.upload_url }}" hx-trigger="change" hx-encoding="multipart/form-data" hx-params="{{ widget.name }},heggra-config,csrfmiddlewaretoken" hx-vals="{{ widget.hx_vals }}" hx-target="#{{ widget.file_id }}" hx-swap="innerHTML" hx-sync="this:replace" {% include "django/forms/widgets/attrs.html" %}>
+      <input type="{{ widget.type }}" name="{{ widget.name }}" data-heggra-input hx-post="{{ widget.upload_url }}" hx-trigger="change" hx-encoding="multipart/form-data" hx-params="{{ widget.name }},heggra-config,csrfmiddlewaretoken" hx-vals="{{ widget.hx_vals }}" hx-target="this" hx-swap="innerHTML" hx-sync="this:replace" {% include "django/forms/widgets/attrs.html" %}>
       <span class="heggra-button {{ widget.classes.button }}">{{ widget.button_text }}</span>
       <span class="heggra-hint {{ widget.classes.hint }}">{{ widget.drop_text }}</span>
     </label>
