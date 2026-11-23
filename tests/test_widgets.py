@@ -63,6 +63,11 @@ def test_accept_refuses_multi_part_extensions(extension):
         UploadWidget(accept=["pdf", extension])
 
 
+def test_accept_refuses_a_string():
+    with pytest.raises(TypeError, match="not a string"):
+        UploadWidget(accept="pdf")
+
+
 def test_render():
     html = DocumentForm()["attachment"].as_widget()
     assert 'class="heggra ' in html

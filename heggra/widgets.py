@@ -67,6 +67,9 @@ class UploadWidget(forms.ClearableFileInput):
         # No file could pass a limit of 0, and the browser's check reads 0 as no limit.
         if max_size is not None and max_size < 1:
             raise ValueError("UploadWidget's max_size must be at least 1 byte.")
+        # A string would be read as a list of one-letter extensions.
+        if isinstance(accept, str):
+            raise TypeError("UploadWidget's accept must be a list of extensions, not a string.")
         super().__init__(attrs)
         self.image = image
         self.max_size = max_size
