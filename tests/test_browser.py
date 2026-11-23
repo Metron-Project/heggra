@@ -1,6 +1,7 @@
 """Tests for heggra.js, run in headless Firefox against a live server."""
 
 import shutil
+import time
 
 import pytest
 from selenium import webdriver
@@ -8,6 +9,8 @@ from selenium.common.exceptions import StaleElementReferenceException
 from selenium.webdriver.common.by import By
 from selenium.webdriver.firefox.options import Options
 from selenium.webdriver.support.ui import WebDriverWait
+
+from heggra import views
 
 from .images import png
 
@@ -181,6 +184,21 @@ def test_a_page_that_is_not_an_upload_is_not_shown(page):
     assert widget.error.text == "The upload failed. Please try again."
     assert widget.slot.text == ""
     assert events(page) == [{"type": "error", "message": "The upload failed. Please try again."}]
+
+
+def test_remove_cancels_an_upload_on_its_way(page, monkeypatch):
+    widget = Widget(page, "attachment")
+    widget.drop("notes.txt", "hello")
+    widget.wait.until(lambda _: widget.file_name == "notes.txt")
+    save = views.save_temporary
+    monkeypatch.setattr(views, "save_temporary", lambda *args: time.sleep(1) or save(*args))
+    widget.drop("other.txt", "hello")
+    widget.slot.find_element(By.CSS_SELECTOR, "[data-heggra-remove]").click()
+    progress = widget.root.find_element(By.CSS_SELECTOR, "[data-heggra-progress]")
+    widget.wait.until(lambda _: not progress.is_displayed())
+    time.sleep(1.5)
+    assert widget.file_name is None
+    assert [event["type"] for event in events(page)] == ["upload", "remove"]
 
 
 def test_error_keeps_the_previous_upload(page):

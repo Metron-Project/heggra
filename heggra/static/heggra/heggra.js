@@ -156,6 +156,8 @@
     if (!remove) return;
     const root = rootOf(remove);
     const name = part(root, "file-name").textContent;
+    // An upload still on its way would otherwise bring a file back after it was removed.
+    part(root, "input").dispatchEvent(new CustomEvent("htmx:abort", { bubbles: true, detail: {} }));
     part(root, "file").replaceChildren();
     part(root, "input").focus();
     notify(root, "remove", { name });
