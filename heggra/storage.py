@@ -129,8 +129,12 @@ def open_token(token: str, rules: Rules) -> TemporaryUpload | None:
     payload = load_token(token)
     if payload is None or payload["rules"] != rules:
         return None
+    storage = get_storage()
+    # Storages differ in what they raise for a missing file, but exists() works on all of them.
+    if not storage.exists(payload["path"]):
+        return None
     try:
-        size = get_storage().size(payload["path"])
+        size = storage.size(payload["path"])
     except FileNotFoundError:
         return None
     content_type = payload["type"] or mimetypes.guess_type(payload["name"])[0]

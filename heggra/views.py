@@ -101,8 +101,12 @@ def preview(request: HttpRequest, token: str) -> HttpResponseBase:
     # Only files Pillow accepted as images are served, under the type it detected.
     if not payload["rules"]["image"] or not content_type.startswith("image/"):
         raise Http404
+    storage = get_storage()
+    # Object storages open files lazily, so a missing one would only fail once streaming.
+    if not storage.exists(payload["path"]):
+        raise Http404
     try:
-        content = get_storage().open(payload["path"], "rb")
+        content = storage.open(payload["path"], "rb")
     except FileNotFoundError:
         raise Http404 from None
     response = FileResponse(content, content_type=content_type, filename=payload["name"])

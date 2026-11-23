@@ -174,9 +174,18 @@ def test_preview_without_an_image_type(client):
     assert client.get(reverse("heggra:preview", args=[token])).status_code == 404
 
 
+@pytest.mark.usefixtures("lazy_storage")
+@pytest.mark.parametrize("lazy_storage", [False, True], indirect=True)
 def test_preview_of_a_deleted_file(client):
     token = image_token()
     storage.get_storage().delete(storage.load_token(token)["path"])
+    assert client.get(reverse("heggra:preview", args=[token])).status_code == 404
+
+
+def test_preview_of_a_file_deleted_after_it_was_found(client, monkeypatch):
+    token = image_token()
+    storage.get_storage().delete(storage.load_token(token)["path"])
+    monkeypatch.setattr(type(storage.get_storage()), "exists", lambda self, name: True)
     assert client.get(reverse("heggra:preview", args=[token])).status_code == 404
 
 

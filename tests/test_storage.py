@@ -2,20 +2,12 @@ import gc
 from datetime import timedelta
 
 import pytest
-from django.core.files.storage import InMemoryStorage
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.utils import timezone
 
 from heggra import storage
 
 RULES = {"name": "attachment", "max_size": None, "accept": [], "image": False}
-
-
-class ObjectStorage(InMemoryStorage):
-    """A storage where heggra's folder doesn't exist, like a prefix on S3."""
-
-    def exists(self, name):
-        return name != storage.TEMP_DIR and super().exists(name)
 
 
 def upload(name="notes.txt", content=b"hello"):
@@ -123,9 +115,18 @@ def test_expired_token(settings):
     assert storage.open_token(token, RULES) is None
 
 
+@pytest.mark.usefixtures("lazy_storage")
+@pytest.mark.parametrize("lazy_storage", [False, True], indirect=True)
 def test_missing_file():
     token = storage.save_temporary(upload(), RULES).token
     storage.get_storage().delete(storage.load_token(token)["path"])
+    assert storage.open_token(token, RULES) is None
+
+
+def test_file_deleted_after_it_was_found(monkeypatch):
+    token = storage.save_temporary(upload(), RULES).token
+    storage.get_storage().delete(storage.load_token(token)["path"])
+    monkeypatch.setattr(type(storage.get_storage()), "exists", lambda self, name: True)
     assert storage.open_token(token, RULES) is None
 
 
@@ -171,7 +172,7 @@ def test_cleanup_with_storage_without_folders(settings):
 def test_cleanup_with_storage_whose_folders_dont_exist(settings):
     settings.STORAGES = {
         **settings.STORAGES,
-        "heggra": {"BACKEND": "tests.test_storage.ObjectStorage"},
+        "heggra": {"BACKEND": "tests.storages.ObjectStorage"},
     }
     settings.HEGGRA_STORAGE = "heggra"
     storage.save_temporary(upload(), RULES)
