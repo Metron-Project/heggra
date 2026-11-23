@@ -75,6 +75,12 @@ class UploadWidget(forms.ClearableFileInput):
         # An empty extension would allow only files without one.
         if "" in self.accept:
             raise ValueError("UploadWidget's accept can't contain an empty extension.")
+        # Django checks only a file's last extension, so "tar.gz" would refuse every file.
+        if multipart := [extension for extension in self.accept if "." in extension]:
+            message = (
+                f"UploadWidget's accept can't contain a multi-part extension: {multipart[0]!r}."
+            )
+            raise ValueError(message)
         self.classes = classes or {}
         # FileField.bound_data hands a bound form's initial value to the widget, so the widget
         # remembers what it read, the way ClearableFileInput remembers its checkbox.

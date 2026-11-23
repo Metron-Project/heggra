@@ -57,6 +57,12 @@ def test_accept_needs_extensions(extension):
         UploadWidget(accept=["pdf", extension])
 
 
+@pytest.mark.parametrize("extension", ["tar.gz", ".tar.gz", "gz."])
+def test_accept_refuses_multi_part_extensions(extension):
+    with pytest.raises(ValueError, match="multi-part"):
+        UploadWidget(accept=["pdf", extension])
+
+
 def test_render():
     html = DocumentForm()["attachment"].as_widget()
     assert 'class="heggra ' in html
