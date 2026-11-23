@@ -39,11 +39,16 @@ def _error(
     return response
 
 
-def validate(file: UploadedFile, rules: Rules) -> list[str]:
-    """Return the reasons ``file`` breaks ``rules``, or an empty list if it doesn't."""
+def validate(file: UploadedFile, rules: Rules, too_large_text: str | None = None) -> list[str]:
+    """Return the reasons ``file`` breaks ``rules``, or an empty list if it doesn't.
+
+    ``too_large_text`` is the message for a file over ``max_size``, with a ``%(size)s``
+    placeholder, such as a widget's ``too_large_text``.
+    """
     max_size = rules["max_size"]
     if max_size is not None and (file.size or 0) > max_size:
-        return [_("The file can't be larger than %(size)s.") % {"size": filesizeformat(max_size)}]
+        text = too_large_text or _("The file can't be larger than %(size)s.")
+        return [text % {"size": filesizeformat(max_size)}]
     field = forms.ImageField() if rules["image"] else forms.FileField()
     if rules["accept"]:
         field.validators.append(FileExtensionValidator(rules["accept"]))
@@ -69,7 +74,7 @@ def upload(request: HttpRequest) -> HttpResponse:
     file = request.FILES.get(rules["name"])
     if file is None:
         return _error(request, config, [_("No file was submitted.")], 422)
-    messages = validate(file, rules)
+    messages = validate(file, rules, config.get("too_large_text"))
     if messages:
         return _error(request, config, messages, 422)
 

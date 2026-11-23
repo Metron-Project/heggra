@@ -125,7 +125,12 @@ class UploadWidget(forms.ClearableFileInput):
         disabled = bool(widget_attrs.get("disabled"))
 
         rules = self.rules(name)
-        config = {"rules": rules, "classes": classes, "remove_text": str(self.remove_text)}
+        config = {
+            "rules": rules,
+            "classes": classes,
+            "remove_text": str(self.remove_text),
+            "too_large_text": str(self.too_large_text),
+        }
         upload = self.uploads.get(name)
         widget.update(
             button_text=self.button_text,

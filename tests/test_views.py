@@ -72,6 +72,21 @@ def test_file_too_large(client):
     assert_error(response, 422, "The file can&#x27;t be larger than 1.0\xa0KB.")
 
 
+def test_file_too_large_uses_the_widget_text(client):
+    rules = {"name": "attachment", "max_size": 1024, "accept": [], "image": False}
+    config = {
+        "rules": rules,
+        "classes": {"error": "help"},
+        "remove_text": "Drop",
+        "too_large_text": "Max %(size)s",
+    }
+    data = {
+        "heggra-config": signing.dumps(config, salt=storage.CONFIG_SALT, compress=True),
+        "attachment": text_file(content=b"x" * 2048),
+    }
+    assert_error(client.post(UPLOAD_URL, data), 422, "Max 1.0\xa0KB")
+
+
 def test_file_at_the_size_limit(client):
     assert post(client, text_file(content=b"x" * 1024), max_size=1024).status_code == 200
 

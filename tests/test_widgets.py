@@ -62,7 +62,17 @@ def test_render():
         "rules": {"name": "attachment", "max_size": 1024, "accept": ["pdf", "txt"], "image": False},
         "classes": {},
         "remove_text": "Remove",
+        "too_large_text": "The file can't be larger than %(size)s.",
     }
+
+
+def test_too_large_text_reaches_the_upload_view():
+    class Widget(UploadWidget):
+        too_large_text = "Too big, over %(size)s!"
+
+    assert config_of(Widget(max_size=10).render("doc", None))["too_large_text"] == (
+        "Too big, over %(size)s!"
+    )
 
 
 def test_render_image_accepts_images():
