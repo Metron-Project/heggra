@@ -101,6 +101,8 @@ class UploadWidget(forms.ClearableFileInput):
         self.file_checks: dict[str, tuple[UploadedFile, list[str]]] = {}
         # The files submitted with the form that were saved to temporary storage, by name.
         self.kept_files: dict[str, UploadedFile] = {}
+        # The names whose upload came with a checked clear checkbox, which says nothing about it.
+        self.contradictions: set[str] = set()
 
     @override
     def __deepcopy__(self, memo: dict[int, Any]) -> Self:
@@ -109,6 +111,7 @@ class UploadWidget(forms.ClearableFileInput):
         widget.uploads = {}
         widget.file_checks = {}
         widget.kept_files = {}
+        widget.contradictions = set()
         return widget
 
     def token_name(self, name: str) -> str:
@@ -181,8 +184,12 @@ class UploadWidget(forms.ClearableFileInput):
                 messages = [str(self.expired_text)]
         checkbox_name = self.clear_checkbox_name(name)
         self.checked = checkbox_name in data
+        self.contradictions.discard(name)
         if not self.is_required and CheckboxInput().value_from_datadict(data, files, checkbox_name):
-            return FILE_INPUT_CONTRADICTION if upload else False
+            if not upload:
+                return False
+            self.contradictions.add(name)
+            return FILE_INPUT_CONTRADICTION
         return RefusedUpload(messages) if messages else upload
 
     @override
@@ -218,8 +225,13 @@ class UploadWidget(forms.ClearableFileInput):
             "remove_text": str(self.remove_text),
             "too_large_text": str(self.too_large_text),
         }
-        self.keep_file(name)
-        upload = self.uploads.get(name)
+        # A bound field with errors renders with aria-invalid. Its errors are about the file, unless
+        # it's only that the clear checkbox was checked too, so the file isn't offered again.
+        rejected = widget_attrs.get("aria-invalid") in {True, "true"}
+        upload = None
+        if not rejected or name in self.contradictions:
+            self.keep_file(name)
+            upload = self.uploads.get(name)
         widget.update(
             button_text=self.button_text,
             checkbox_checked=checkbox_checked,

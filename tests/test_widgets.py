@@ -492,3 +492,55 @@ def test_form_saves_an_upload_with_a_long_name(media_root):
     name = form.save().attachment.name
     assert name.startswith("attachments/aaa")
     assert name.endswith(".txt")
+
+
+class PickyDocumentForm(DocumentForm):
+    def clean_attachment(self):
+        attachment = self.cleaned_data["attachment"]
+        if attachment and attachment.read() == b"nope":
+            raise forms.ValidationError("Not that file.")
+        return attachment
+
+
+def test_upload_the_field_rejected_is_not_shown_again():
+    token = token_for(PickyDocumentForm(), "attachment", text_file(content=b"nope"))
+    form = PickyDocumentForm({"title": "A", "attachment-token": token})
+    assert form.errors == {"attachment": ["Not that file."]}
+    html = form["attachment"].as_widget()
+    assert 'aria-invalid="true"' in html
+    assert "notes.txt" not in html
+    assert "attachment-token" not in html
+
+
+def test_file_submitted_with_the_form_the_field_rejected_is_not_kept(media_root):
+    files = MultiValueDict({"attachment": [text_file(content=b"nope")]})
+    form = PickyDocumentForm({"title": "A"}, files)
+    assert form.errors == {"attachment": ["Not that file."]}
+    assert "attachment-token" not in form["attachment"].as_widget()
+    assert not (media_root / storage.TEMP_DIR).exists()
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("submitted_with_the_form", [False, True])
+def test_upload_with_a_checked_clear_checkbox_is_shown_again(media_root, submitted_with_the_form):
+    document = Document.objects.create(title="A", attachment=text_file("old.txt"))
+    data = {"title": "A", "attachment-clear": "on"}
+    files = MultiValueDict()
+    if submitted_with_the_form:
+        files["attachment"] = text_file()
+    else:
+        data["attachment-token"] = token_for(DocumentForm(), "attachment", text_file())
+    form = DocumentForm(data, files, instance=document)
+    assert list(form.errors) == ["attachment"]
+    html = form["attachment"].as_widget()
+    assert "notes.txt" in html
+    assert "attachment-token" in html
+
+
+def test_upload_is_shown_again_once_the_clear_checkbox_is_unchecked():
+    widget = DocumentForm().fields["attachment"].widget
+    token = token_for(DocumentForm(), "attachment", text_file())
+    data = {"attachment-token": token, "attachment-clear": "on"}
+    widget.value_from_datadict(data, MultiValueDict(), "attachment")
+    widget.value_from_datadict({"attachment-token": token}, MultiValueDict(), "attachment")
+    assert widget.contradictions == set()

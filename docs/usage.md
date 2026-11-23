@@ -49,6 +49,12 @@ it again. A file that went up with the form and passed the widget's checks is sh
 widget saves it to temporary storage when it renders the form again, and holds its token like any
 upload.
 
+A file the field itself rejected isn't shown again, as when a validator or the form's
+`clean_<field>()` refused it, so it isn't submitted again only to fail the same way. The widget
+tells from the `aria-invalid` attribute Django gives a field with errors, and treats any error on
+the field as one about the file, except checking the clear checkbox while uploading a file. A form
+that adds an error to the field in `clean()` also makes the user pick the file again.
+
 A token that is invalid, has expired, or was issued for a different field, or for the same field
 with different options, is refused: the field reports that the file is no longer available and
 asks for it again, and an optional field keeps its current file until the form is saved without
