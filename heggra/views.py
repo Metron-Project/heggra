@@ -85,7 +85,10 @@ def upload(request: HttpRequest) -> HttpResponse:
         "remove_text": config["remove_text"],
         "upload": upload_context(saved.name or "", saved.size or 0, saved.token, rules),
     }
-    return render(request, "heggra/file.html", context)
+    response = render(request, "heggra/file.html", context)
+    # heggra.js swaps only responses with this header, so a login page a redirect led to doesn't.
+    response.headers["X-Heggra-Upload"] = "true"
+    return response
 
 
 @require_GET

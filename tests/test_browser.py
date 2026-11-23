@@ -169,6 +169,20 @@ def test_server_errors_are_shown(page):
     assert widget.error.find_element(By.CSS_SELECTOR, "[role=alert]")
 
 
+def test_a_page_that_is_not_an_upload_is_not_shown(page):
+    widget = Widget(page, "attachment")
+    # As when a login middleware redirects an expired session's upload to its login page.
+    page.execute_script(
+        "arguments[0].setAttribute('hx-post', '/login/'); htmx.process(arguments[0]);",
+        widget.input,
+    )
+    widget.drop("notes.txt", "hello")
+    widget.wait.until(lambda _: widget.error.text)
+    assert widget.error.text == "The upload failed. Please try again."
+    assert widget.slot.text == ""
+    assert events(page) == [{"type": "error", "message": "The upload failed. Please try again."}]
+
+
 def test_error_keeps_the_previous_upload(page):
     widget = Widget(page, "attachment")
     widget.drop("notes.txt", "hello")

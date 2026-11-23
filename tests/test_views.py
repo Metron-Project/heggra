@@ -29,6 +29,7 @@ def text_file(name="notes.txt", content=b"hello"):
 def test_upload_renders_the_file(client):
     response = post(client, text_file())
     assert response.status_code == 200
+    assert response.headers["X-Heggra-Upload"] == "true"
     html = response.content.decode()
     assert 'class="heggra-file box"' in html
     assert "notes.txt" in html

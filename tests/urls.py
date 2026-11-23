@@ -13,7 +13,12 @@ def document_form(request):
     return render(request, "form.html", {"form": form})
 
 
+def login(request):
+    return HttpResponse("<form><input name='username'></form>")
+
+
 urlpatterns = [
+    path("login/", login),
     path("heggra/", include("heggra.urls")),
     path("form/", document_form),
 ]

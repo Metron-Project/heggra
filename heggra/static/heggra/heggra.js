@@ -115,10 +115,16 @@
   // htmx drops error responses, but a refused upload carries a message for the user.
   document.addEventListener("htmx:beforeSwap", (event) => {
     if (!isWidgetInput(sender(event))) return;
-    if (!event.detail.xhr.getResponseHeader("X-Heggra-Error")) return;
-    event.detail.shouldSwap = true;
-    event.detail.isError = false;
-    event.detail.target = part(rootOf(sender(event)), "error");
+    const header = (name) => event.detail.xhr.getResponseHeader(name);
+    if (header("X-Heggra-Error")) {
+      event.detail.shouldSwap = true;
+      event.detail.isError = false;
+      event.detail.target = part(rootOf(sender(event)), "error");
+    } else if (!header("X-Heggra-Upload")) {
+      // Something else answered, such as a login page after a redirect: the upload failed.
+      event.detail.shouldSwap = false;
+      event.detail.isError = true;
+    }
   });
 
   document.addEventListener("htmx:afterSwap", (event) => {
