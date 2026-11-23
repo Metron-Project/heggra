@@ -1,5 +1,6 @@
 """The upload and preview endpoints."""
 
+import re
 from typing import Any
 
 from django import forms
@@ -67,6 +68,18 @@ def validate(file: UploadedFile, rules: Rules, too_large_text: str | None = None
     return []
 
 
+def _posted_name(request: HttpRequest, name: str) -> str:
+    """Return the name the widget's file was posted under, which is ``name`` unless it's renamed.
+
+    A formset's empty form renders names with ``__prefix__``, which the page replaces with a form's
+    index when it adds the form, but it can't change the name signed in the widget's config.
+    """
+    if "__prefix__" not in name:
+        return name
+    pattern = re.compile(re.escape(name).replace("__prefix__", r"\d+"))
+    return next((posted for posted in request.FILES if pattern.fullmatch(posted)), name)
+
+
 @never_cache
 @require_POST
 def upload(request: HttpRequest) -> HttpResponse:
@@ -84,6 +97,8 @@ def upload(request: HttpRequest) -> HttpResponse:
         return _error(request, config, [_("Log in to upload files.")], 403)
 
     rules: Rules = config["rules"]
+    # The token is bound to the name the form will submit it under.
+    rules["name"] = _posted_name(request, rules["name"])
     file = request.FILES.get(rules["name"])
     if file is None:
         return _error(request, config, [_("No file was submitted.")], 422)

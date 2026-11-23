@@ -324,3 +324,25 @@ def test_a_file_submitted_with_the_form_replaces_the_token():
     html = form["attachment"].as_widget()
     assert token not in html
     assert "a.txt" not in html
+
+
+def test_form_added_from_a_formset_empty_form(client):
+    class AttachmentForm(forms.Form):
+        attachment = forms.FileField(widget=UploadWidget(accept=["txt"]))
+
+    formset_class = forms.formset_factory(AttachmentForm)
+    html = formset_class().empty_form["attachment"].as_widget()
+    # As the page does when it adds a form: every __prefix__ becomes the form's index.
+    html = html.replace("__prefix__", "0")
+    assert 'hx-params="form-0-attachment,heggra-config,csrfmiddlewaretoken"' in html
+    hx_vals = json.loads(unescape(html.split('hx-vals="')[1].split('"')[0]))
+    response = client.post("/heggra/upload/", {**hx_vals, "form-0-attachment": text_file()})
+    token = response.content.decode().split('name="form-0-attachment-token" value="')[1]
+    data = {
+        "form-TOTAL_FORMS": "1",
+        "form-INITIAL_FORMS": "0",
+        "form-0-attachment-token": token.split('"')[0],
+    }
+    formset = formset_class(data)
+    assert formset.is_valid(), formset.errors
+    assert formset.forms[0].cleaned_data["attachment"].read() == b"hello"

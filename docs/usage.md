@@ -46,6 +46,15 @@ file goes up with the form like any file input.
 A token that is invalid, has expired, or was issued for a different field counts as no file: a
 required field reports that it is required, and an optional field keeps its current file.
 
+## Formsets
+
+The widget works in formsets, including forms the page adds by copying the formset's
+`empty_form`. Replace `__prefix__` with the new form's index everywhere in the copied HTML, as
+Django's formset documentation suggests, not only in `name` and `id` attributes: the file input's
+`hx-params` holds its name too. Then have htmx process the new form, with `htmx.process()`, unless
+htmx added it itself. The upload view accepts a file whose name matches the empty form's with each
+`__prefix__` replaced by a number, and issues its token for the name the form will submit.
+
 ## Options
 
 | Argument | Purpose |

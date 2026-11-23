@@ -88,6 +88,22 @@ def test_missing_file(client):
     assert_error(response, 422, "No file was submitted.")
 
 
+def test_formset_empty_form_name(client):
+    data = {"heggra-config": make_config(name="form-__prefix__-attachment")}
+    response = client.post(UPLOAD_URL, {**data, "form-2-attachment": text_file()})
+    assert response.status_code == 200
+    html = response.content.decode()
+    token = html.split('name="form-2-attachment-token" value="')[1].split('"')[0]
+    rules = {"name": "form-2-attachment", "max_size": None, "accept": [], "image": False}
+    assert storage.open_token(token, rules).read() == b"hello"
+
+
+@pytest.mark.parametrize("name", ["form-x-attachment", "form--attachment", "attachment"])
+def test_formset_empty_form_name_needs_an_index(client, name):
+    data = {"heggra-config": make_config(name="form-__prefix__-attachment"), name: text_file()}
+    assert_error(client.post(UPLOAD_URL, data), 422, "No file was submitted.")
+
+
 def test_file_too_large(client):
     response = post(client, text_file(content=b"x" * 2048), max_size=1024)
     assert_error(response, 422, "The file can&#x27;t be larger than 1.0\xa0KB.")
