@@ -214,6 +214,25 @@ def test_remove_cancels_an_upload_on_its_way(page, monkeypatch):
     assert [event["type"] for event in events(page)] == ["upload", "remove"]
 
 
+def test_htmx_attributes_of_the_form_are_not_inherited(page, live_server):
+    page.execute_script(
+        "const form = document.getElementById('form');"
+        "form.setAttribute('hx-post', '/form/');"
+        "form.setAttribute('hx-select', '#nothing');"
+        "form.setAttribute('hx-select-oob', '#nothing');"
+        "form.setAttribute('hx-confirm', 'Sure?');"
+        "form.setAttribute('hx-push-url', 'true');"
+        "form.setAttribute('hx-disabled-elt', 'find input');"
+        "htmx.process(form);"
+    )
+    widget = Widget(page, "attachment")
+    widget.drop("notes.txt", "hello")
+    widget.wait.until(lambda _: widget.file_name == "notes.txt")
+    assert widget.token
+    assert page.current_url == f"{live_server.url}/form/"
+    assert widget.input.is_enabled()
+
+
 def test_ids_with_selector_characters(page, live_server):
     page.get(f"{live_server.url}/form/?auto_id=id.%s:x")
     widget = Widget(page, "attachment", element_id="id.attachment:x")

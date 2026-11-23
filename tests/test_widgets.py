@@ -71,6 +71,10 @@ def test_render():
     assert 'accept=".pdf,.txt"' in html
     assert 'hx-post="/heggra/upload/"' in html
     assert 'hx-target="this"' in html
+    assert 'hx-select="unset"' in html
+    assert 'hx-confirm="unset"' in html
+    assert 'hx-push-url="false"' in html
+    assert 'hx-ext="ignore:json-enc"' in html
     assert 'hx-params="attachment,heggra-config,csrfmiddlewaretoken"' in html
     assert 'data-heggra-max-size="1024"' in html
     assert "required" not in html

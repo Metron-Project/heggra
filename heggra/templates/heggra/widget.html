@@ -6,9 +6,10 @@
     {% if not widget.required %}<label class="heggra-clear {{ widget.classes.clear }}"><input type="checkbox" name="{{ widget.checkbox_name }}" id="{{ widget.checkbox_id }}"{% if widget.disabled %} disabled{% endif %}{% if widget.checkbox_checked %} checked{% endif %}> {{ widget.clear_checkbox_label }}</label>{% endif %}
   </div>
   {% endif %}
+  {# The input sets or unsets every htmx attribute that it would otherwise inherit from an htmx form and that would break uploads. #}
   <div class="heggra-dropzone {{ widget.classes.dropzone }}" data-heggra-dropzone>
     <label class="heggra-label {{ widget.classes.label }}">
-      <input type="{{ widget.type }}" name="{{ widget.name }}" data-heggra-input hx-post="{{ widget.upload_url }}" hx-trigger="change" hx-encoding="multipart/form-data" hx-params="{{ widget.name }},heggra-config,csrfmiddlewaretoken" hx-vals="{{ widget.hx_vals }}" hx-target="this" hx-swap="innerHTML" hx-sync="this:replace" {% include "django/forms/widgets/attrs.html" %}>
+      <input type="{{ widget.type }}" name="{{ widget.name }}" data-heggra-input hx-post="{{ widget.upload_url }}" hx-trigger="change" hx-encoding="multipart/form-data" hx-params="{{ widget.name }},heggra-config,csrfmiddlewaretoken" hx-vals="{{ widget.hx_vals }}" hx-target="this" hx-swap="innerHTML" hx-sync="this:replace" hx-select="unset" hx-select-oob="unset" hx-confirm="unset" hx-prompt="unset" hx-indicator="unset" hx-disabled-elt="unset" hx-push-url="false" hx-replace-url="false" hx-ext="ignore:json-enc" {% include "django/forms/widgets/attrs.html" %}>
       <span class="heggra-button {{ widget.classes.button }}">{{ widget.button_text }}</span>
       <span class="heggra-hint {{ widget.classes.hint }}">{{ widget.drop_text }}</span>
     </label>
