@@ -137,6 +137,30 @@ def test_too_large_is_refused_before_uploading(page):
     assert events(page) == [{"type": "error", "message": message}]
 
 
+# The snippet in docs/javascript.md.
+DISABLE_SUBMIT = """
+const submit = document.querySelector("#form [type=submit]");
+document.addEventListener("htmx:beforeSend", (event) => {
+  if (event.target.matches("[data-heggra-input]")) submit.disabled = true;
+});
+document.addEventListener("htmx:afterRequest", (event) => {
+  if (event.target.matches("[data-heggra-input]")) submit.disabled = false;
+});
+"""
+
+
+def test_documented_submit_snippet_survives_a_refused_file(page):
+    page.execute_script(DISABLE_SUBMIT)
+    submit = page.find_element(By.ID, "submit")
+    widget = Widget(page, "attachment")
+    widget.drop("big.txt", "x" * 2048)
+    widget.wait.until(lambda _: widget.error.text)
+    assert submit.is_enabled()
+    widget.drop("notes.txt", "hello")
+    widget.wait.until(lambda _: widget.file_name == "notes.txt")
+    assert submit.is_enabled()
+
+
 def test_server_errors_are_shown(page):
     widget = Widget(page, "attachment")
     widget.drop("notes.exe", "hello")

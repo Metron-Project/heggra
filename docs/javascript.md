@@ -15,10 +15,13 @@ For example, to keep a form's submit button disabled while a file is uploading:
 
 ```js
 const submit = document.querySelector("#issue-form [type=submit]");
-document.addEventListener("htmx:beforeRequest", (event) => {
+document.addEventListener("htmx:beforeSend", (event) => {
   if (event.target.matches("[data-heggra-input]")) submit.disabled = true;
 });
 document.addEventListener("htmx:afterRequest", (event) => {
   if (event.target.matches("[data-heggra-input]")) submit.disabled = false;
 });
 ```
+
+Listen for `htmx:beforeSend` rather than `htmx:beforeRequest`: heggra.js cancels the request for a
+file over `max_size`, and a cancelled request never sends `htmx:afterRequest`.
