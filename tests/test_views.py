@@ -39,6 +39,12 @@ def test_upload_renders_the_file(client):
     assert storage.open_token(token, rules).read() == b"hello"
 
 
+def test_upload_without_a_usable_name(client):
+    response = post(client, text_file("@@@"))
+    assert response.status_code == 200
+    assert "upload" in response.content.decode()
+
+
 def test_upload_is_not_cached(client):
     assert "no-cache" in post(client, text_file()).headers["Cache-Control"]
 

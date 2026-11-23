@@ -10,6 +10,7 @@ from typing import Any, Self, TypedDict, override
 
 from django.conf import settings
 from django.core import signing
+from django.core.exceptions import SuspiciousFileOperation
 from django.core.files.storage import FileSystemStorage, Storage, storages
 from django.core.files.uploadedfile import UploadedFile
 from django.urls import reverse
@@ -86,10 +87,19 @@ def get_max_age() -> int:
     return getattr(settings, "HEGGRA_MAX_AGE", DEFAULT_MAX_AGE)
 
 
+def clean_name(name: str) -> str:
+    """Return ``name`` made safe to store, or ``"upload"`` if nothing of it is."""
+    name = PurePosixPath(name).name
+    try:
+        name = get_valid_filename(name)
+    except SuspiciousFileOperation:
+        return "upload"
+    return name if name.strip(".") else "upload"
+
+
 def save_temporary(file: UploadedFile, rules: Rules) -> str:
     """Save ``file`` to temporary storage and return a signed token for it."""
-    name = PurePosixPath(file.name or "").name
-    name = get_valid_filename(name) if name.strip(" .") else "upload"
+    name = clean_name(file.name or "")
     path = get_storage().save(f"{TEMP_DIR}/{uuid.uuid4().hex}/{name}", file)
     payload = {"path": path, "name": name, "type": file.content_type, "rules": rules}
     return signing.dumps(payload, salt=TOKEN_SALT, compress=True)

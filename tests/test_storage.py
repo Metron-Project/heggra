@@ -1,6 +1,7 @@
 import gc
 from datetime import timedelta
 
+import pytest
 from django.core.files.storage import InMemoryStorage
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.utils import timezone
@@ -76,8 +77,13 @@ def test_unsafe_names_are_cleaned():
     assert storage.open_token(token, RULES).name == "pass_wd"
 
 
-def test_empty_names_get_a_default():
-    token = storage.save_temporary(upload("..."), RULES)
+@pytest.mark.parametrize("name", ["", "...", " . ", "@@@", "$$$", "../.."])
+def test_empty_names_get_a_default(name):
+    assert storage.clean_name(name) == "upload"
+
+
+def test_upload_without_a_usable_name():
+    token = storage.save_temporary(upload("@@@"), RULES)
     assert storage.open_token(token, RULES).name == "upload"
 
 
