@@ -152,7 +152,7 @@ def test_content_type_is_guessed_when_missing():
 
 
 def test_upload_context_without_preview():
-    context = storage.upload_context("notes.txt", 5, "token", RULES)
+    context = storage.upload_context("notes.txt", 5, "token", RULES, "text/plain")
     assert context == {
         "field_name": "attachment",
         "name": "notes.txt",
@@ -215,3 +215,29 @@ def test_cleanup_skips_uploads_deleted_while_it_runs(media_root, monkeypatch):
 
     monkeypatch.setattr(temporary, "listdir", listdir_with_gone_entries)
     assert storage.cleanup(timezone.now() + timedelta(days=2)) == 1
+
+
+IMAGE_RULES = {**RULES, "image": True}
+
+
+@pytest.mark.parametrize(
+    ("rules", "content_type", "preview"),
+    [
+        (IMAGE_RULES, "image/png", True),
+        (IMAGE_RULES, "image/webp", True),
+        (IMAGE_RULES, "image/tiff", False),
+        (IMAGE_RULES, "application/postscript", False),
+        (IMAGE_RULES, None, False),
+        (RULES, "image/png", False),
+    ],
+)
+def test_upload_context_previews_images_browsers_show(rules, content_type, preview):
+    context = storage.upload_context("cover", 5, "token", rules, content_type)
+    assert (context["preview_url"] is not None) is preview
+
+
+def test_image_type_is_not_guessed_when_missing():
+    file = upload("cover.png")
+    file.content_type = None
+    token = storage.save_temporary(file, IMAGE_RULES).token
+    assert storage.open_token(token, IMAGE_RULES).content_type is None

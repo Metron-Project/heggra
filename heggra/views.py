@@ -28,6 +28,7 @@ from .storage import (
     Rules,
     get_max_age,
     get_storage,
+    has_preview,
     load_token,
     save_temporary,
     upload_context,
@@ -124,7 +125,9 @@ def upload(request: HttpRequest) -> HttpResponse:
     context = {
         "classes": config["classes"],
         "remove_text": config["remove_text"],
-        "upload": upload_context(saved.name or "", saved.size or 0, saved.token, rules),
+        "upload": upload_context(
+            saved.name or "", saved.size or 0, saved.token, rules, saved.content_type
+        ),
     }
     response = render(request, "heggra/file.html", context)
     # heggra.js swaps only responses with this header, so a login page a redirect led to doesn't.
@@ -138,9 +141,10 @@ def preview(request: HttpRequest, token: str) -> HttpResponseBase:
     payload = load_token(token)
     if payload is None or _login_required(request):
         raise Http404
-    content_type = payload["type"] or ""
-    # Only files Pillow accepted as images are served, under the type it detected.
-    if not payload["rules"]["image"] or not content_type.startswith("image/"):
+    content_type = payload["type"]
+    # Only files Pillow accepted as images that browsers can show are served, under the type it
+    # detected.
+    if not has_preview(payload["rules"], content_type):
         raise Http404
     storage = get_storage()
     # Object storages open files lazily, so a missing one would only fail once streaming.

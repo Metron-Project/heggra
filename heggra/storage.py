@@ -27,6 +27,20 @@ CLEANUP_GRACE = 60 * 60
 MAX_NAME_BYTES = 200
 # A form FileField refuses longer names, and a model FileField gives it a max_length of 100.
 MAX_NAME_LENGTH = 100
+# The image types browsers can show, the only ones the widget previews. Pillow opens many more,
+# such as TIFF and PSD, which would show as a broken image.
+PREVIEW_TYPES = frozenset(
+    {
+        "image/avif",
+        "image/bmp",
+        "image/gif",
+        "image/jpeg",
+        "image/png",
+        "image/webp",
+        "image/x-icon",
+    }
+)
+PREVIEW_EXTENSIONS = frozenset({".avif", ".bmp", ".gif", ".ico", ".jpeg", ".jpg", ".png", ".webp"})
 
 
 class Rules(TypedDict):
@@ -146,18 +160,29 @@ def open_token(token: str, rules: Rules) -> TemporaryUpload | None:
         size = storage.size(payload["path"])
     except FileNotFoundError:
         return None
-    content_type = payload["type"] or mimetypes.guess_type(payload["name"])[0]
+    content_type = payload["type"]
+    # An image's type is the one Pillow detected, if any, which decides whether it has a preview.
+    if content_type is None and not payload["rules"]["image"]:
+        content_type = mimetypes.guess_type(payload["name"])[0]
     return TemporaryUpload(
         token, payload["path"], name=payload["name"], content_type=content_type, size=size
     )
 
 
-def upload_context(name: str, size: int, token: str, rules: Rules) -> dict[str, Any]:
+def has_preview(rules: Rules, content_type: str | None) -> bool:
+    """Return whether an upload checked against ``rules`` is an image browsers can show."""
+    return rules["image"] and content_type in PREVIEW_TYPES
+
+
+def upload_context(
+    name: str, size: int, token: str, rules: Rules, content_type: str | None
+) -> dict[str, Any]:
     """Return the template context describing an upload."""
+    preview = has_preview(rules, content_type)
     return {
         "field_name": rules["name"],
         "name": name,
-        "preview_url": reverse("heggra:preview", args=[token]) if rules["image"] else None,
+        "preview_url": reverse("heggra:preview", args=[token]) if preview else None,
         "size": size,
         "token": token,
     }

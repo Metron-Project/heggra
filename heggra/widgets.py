@@ -3,6 +3,7 @@
 import json
 from collections.abc import Iterable, Mapping
 from importlib.util import find_spec
+from pathlib import PurePosixPath
 from typing import Any, Self, override
 
 from django import forms
@@ -17,6 +18,7 @@ from django.utils.translation import gettext_lazy as _
 
 from .storage import (
     CONFIG_SALT,
+    PREVIEW_EXTENSIONS,
     Rules,
     TemporaryUpload,
     open_token,
@@ -230,13 +232,18 @@ class UploadWidget(forms.ClearableFileInput):
             error_id=f"{widget_attrs['id']}_error",
             failed_text=self.failed_text,
             file_id=f"{widget_attrs['id']}_file",
-            is_image=self.image,
+            # A saved file's type isn't stored, so its extension decides.
+            current_preview=self.image
+            and PurePosixPath(getattr(value, "name", None) or "").suffix.lower()
+            in PREVIEW_EXTENSIONS,
             max_size=self.max_size,
             remove_text=self.remove_text,
             too_large_text=self.max_size
             and too_large_message(str(self.too_large_text), self.max_size),
             upload=upload
-            and upload_context(upload.name or "", upload.size or 0, upload.token, rules),
+            and upload_context(
+                upload.name or "", upload.size or 0, upload.token, rules, upload.content_type
+            ),
             upload_url=reverse("heggra:upload"),
         )
         return context

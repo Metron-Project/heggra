@@ -79,7 +79,12 @@ same rules, and a file that breaks them is a validation error on the field. Eith
 field checks the file again when the form is submitted, so a model `ImageField` still validates the
 image and any validators on the field still run.
 
-On an edit form, a field with a file shows it, with a preview for images. An optional field also
+On an edit form, a field with a file shows it, with a preview for images.
+
+Previews are shown only for images browsers can display: PNG, JPEG, GIF, WebP, AVIF, BMP and ICO.
+Other images Pillow opens, such as TIFF or PSD, upload and save the same way, and the widget shows
+only their name and size. An uploaded image is recognised by the type Pillow detects, and a
+current file by its extension. An optional field also
 shows a checkbox to clear it, which works the same as Django's `ClearableFileInput`: checking it
 and uploading a new file at the same time is a validation error.
 

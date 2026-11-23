@@ -6,7 +6,7 @@ from django.urls import reverse
 
 from heggra import storage
 
-from .images import png
+from .images import image, png
 
 UPLOAD_URL = "/heggra/upload/"
 
@@ -195,6 +195,17 @@ def test_preview_without_an_image_type(client):
     token = storage.save_temporary(
         file, {"name": "cover", "max_size": None, "accept": [], "image": True}
     ).token
+    assert client.get(reverse("heggra:preview", args=[token])).status_code == 404
+
+
+@pytest.mark.parametrize(("name", "image_format"), [("cover.tif", "TIFF"), ("cover.qoi", "QOI")])
+def test_image_browsers_cant_show_has_no_preview(client, name, image_format):
+    response = post(client, image(name, image_format), image=True)
+    assert response.status_code == 200
+    html = response.content.decode()
+    assert name in html
+    assert "<img" not in html
+    token = html.split('name="attachment-token" value="')[1].split('"')[0]
     assert client.get(reverse("heggra:preview", args=[token])).status_code == 404
 
 

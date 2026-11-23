@@ -45,5 +45,6 @@ Run [`heggra_cleanup`](usage.md#cleaning-up) on a schedule, so abandoned uploads
 ## Previews
 
 The preview view only serves uploads from `image=True` widgets, which Pillow has opened, with the
-type Pillow detected. It sends `X-Content-Type-Options: nosniff` and a sandboxing
+type Pillow detected, and only when that is a type browsers show: PNG, JPEG, GIF, WebP, AVIF, BMP
+or ICO. It sends `X-Content-Type-Options: nosniff` and a sandboxing
 `Content-Security-Policy`, so a file can't run script even when opened directly.

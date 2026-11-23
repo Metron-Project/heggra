@@ -1,7 +1,7 @@
 <div class="heggra {{ widget.classes.root }}" data-heggra data-heggra-active-class="heggra-dragover {{ widget.classes.dropzone_active }}"{% if widget.max_size %} data-heggra-max-size="{{ widget.max_size }}" data-heggra-too-large="{{ widget.too_large_text }}"{% endif %} data-heggra-failed="{{ widget.failed_text }}" data-heggra-error-class="{{ widget.classes.error }}">
   {% if widget.is_initial %}
   <div class="heggra-current {{ widget.classes.current }}" data-heggra-current>
-    {% if widget.is_image %}<img class="heggra-preview {{ widget.classes.preview }}" src="{{ widget.value.url }}" alt="">{% endif %}
+    {% if widget.current_preview %}<img class="heggra-preview {{ widget.classes.preview }}" src="{{ widget.value.url }}" alt="">{% endif %}
     <span>{{ widget.initial_text }}: <a href="{{ widget.value.url }}">{{ widget.value }}</a></span>
     {% if not widget.required %}<label class="heggra-clear {{ widget.classes.clear }}"><input type="checkbox" name="{{ widget.checkbox_name }}" id="{{ widget.checkbox_id }}"{% if widget.disabled %} disabled{% endif %}{% if widget.checkbox_checked %} checked{% endif %}> {{ widget.clear_checkbox_label }}</label>{% endif %}
   </div>

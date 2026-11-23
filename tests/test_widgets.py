@@ -11,7 +11,7 @@ from django.utils.datastructures import MultiValueDict
 from heggra import UploadWidget, storage
 
 from .forms import DocumentForm
-from .images import png
+from .images import image, png
 from .models import Document, Picture
 
 
@@ -151,6 +151,26 @@ def test_render_current_file(media_root):
     assert "heggra-current" in html
     assert f'src="{document.cover.url}"' in html
     assert 'name="cover-clear"' in html
+
+
+@pytest.mark.django_db
+def test_render_current_file_browsers_cant_show(media_root):
+    document = Document.objects.create(title="A", cover=image("cover.tif", "TIFF"))
+    html = DocumentForm(instance=document)["cover"].as_widget()
+    assert "heggra-current" in html
+    assert "cover.tif" in html
+    assert "<img" not in html
+
+
+def test_render_upload_browsers_cant_show():
+    form = DocumentForm()
+    # The upload view checks images first, which sets their real type.
+    file = image("cover.tif", "TIFF")
+    forms.ImageField().clean(file)
+    token = storage.save_temporary(file, form.fields["cover"].widget.rules("cover")).token
+    html = DocumentForm({"cover-token": token})["cover"].as_widget()
+    assert "cover.tif" in html
+    assert "<img" not in html
 
 
 def test_render_disabled():
