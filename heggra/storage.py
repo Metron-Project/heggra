@@ -25,6 +25,8 @@ DEFAULT_MAX_AGE = 60 * 60 * 24
 CLEANUP_GRACE = 60 * 60
 # Filesystems limit a file name's bytes, usually to 255, while UploadedFile limits its characters.
 MAX_NAME_BYTES = 200
+# A form FileField refuses longer names, and a model FileField gives it a max_length of 100.
+MAX_NAME_LENGTH = 100
 
 
 class Rules(TypedDict):
@@ -103,12 +105,14 @@ def clean_name(name: str) -> str:
         return "upload"
     if not name.strip("."):
         return "upload"
-    if len(name.encode()) > MAX_NAME_BYTES:
-        path = PurePosixPath(name)
+    if len(name) > MAX_NAME_LENGTH or len(name.encode()) > MAX_NAME_BYTES:
+        suffix = PurePosixPath(name).suffix
         # The extension is kept, unless it's so long that it isn't one.
-        suffix = path.suffix if len(path.suffix.encode()) <= MAX_NAME_BYTES // 2 else ""
-        stem = name.removesuffix(suffix).encode()[: MAX_NAME_BYTES - len(suffix.encode())]
-        name = stem.decode(errors="ignore") + suffix
+        if len(suffix) > MAX_NAME_LENGTH // 2 or len(suffix.encode()) > MAX_NAME_BYTES // 2:
+            suffix = ""
+        stem = name.removesuffix(suffix)[: MAX_NAME_LENGTH - len(suffix)]
+        stem = stem.encode()[: MAX_NAME_BYTES - len(suffix.encode())].decode(errors="ignore")
+        name = stem + suffix
     return name
 
 

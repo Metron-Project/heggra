@@ -97,9 +97,15 @@ def test_long_names_are_cut_to_fit_the_filesystem(media_root):
     assert name == "あ" * 65 + ".png"
 
 
+def test_long_names_are_cut_to_fit_a_model_file_field():
+    name = storage.clean_name("a" * 150 + ".txt")
+    assert name == "a" * 96 + ".txt"
+    assert len(name) == storage.MAX_NAME_LENGTH
+
+
 def test_long_extensions_are_cut_too():
     name = storage.clean_name("notes." + "x" * 300)
-    assert name == "notes." + "x" * (storage.MAX_NAME_BYTES - 6)
+    assert name == "notes." + "x" * (storage.MAX_NAME_LENGTH - 6)
 
 
 def test_upload_without_a_usable_name():

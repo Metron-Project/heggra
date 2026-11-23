@@ -390,3 +390,15 @@ def test_upload_saves_to_an_image_field_with_dimension_fields(media_root, throug
         picture = Picture.objects.create(image=storage.open_token(token, rules))
     assert (picture.width, picture.height) == (4, 3)
     assert picture.image.read() == png(size=(4, 3)).read()
+
+
+@pytest.mark.django_db
+def test_form_saves_an_upload_with_a_long_name(media_root):
+    form = DocumentForm()
+    token = token_for(form, "attachment", text_file("a" * 150 + ".txt"))
+    form = DocumentForm({"title": "A", "attachment-token": token})
+    assert form.is_valid(), form.errors
+    # The storage fits the whole path to the model field's max_length in turn.
+    name = form.save().attachment.name
+    assert name.startswith("attachments/aaa")
+    assert name.endswith(".txt")

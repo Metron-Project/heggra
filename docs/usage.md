@@ -32,8 +32,10 @@ Render the form as usual. It must post with `enctype="multipart/form-data"` and 
 1. The user picks a file, or drops it on the dropzone. When several files are dropped, only the
    first is kept.
 2. htmx posts the file to heggra's upload view at once, and the widget shows a progress bar.
-3. The view validates the file and saves it to temporary storage. The widget then shows the file's
-   name and size, a preview for images, and a remove button, and holds a signed token for the file
+3. The view validates the file and saves it to temporary storage, under a name made safe to store
+   and cut to 100 characters, the longest a model `FileField` takes by default. A field with a
+   smaller `max_length` refuses longer names when the form is submitted. The widget then shows the
+   file's name and size, a preview for images, and a remove button, and holds a signed token for the file
    in a hidden `<name>-token` input. The file input is emptied, so the file isn't sent a second
    time with the form.
 4. When the form is submitted, the widget turns the token back into the file, and the form field
