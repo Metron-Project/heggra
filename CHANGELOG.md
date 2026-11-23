@@ -1,5 +1,7 @@
 # Changelog
 
+## Unreleased
+
 ## v0.1.0 - 2026-11-23
 
 - Set up the project: packaging, tests, linting, type checks, documentation and CI
