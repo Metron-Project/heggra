@@ -41,9 +41,13 @@ Render the form as usual. It must post with `enctype="multipart/form-data"` and 
 4. When the form is submitted, the widget turns the token back into the file, and the form field
    and model field handle it like any other upload.
 
+If JavaScript doesn't run, or the form is submitted before the upload has finished, the file goes up
+with the form like any file input, and the widget checks it against its options.
+
 If the form has errors, the widget shows the uploaded file again, so the user doesn't have to pick
-it again. If JavaScript doesn't run, or the form is submitted before the upload has finished, the
-file goes up with the form like any file input.
+it again. A file that went up with the form and passed the widget's checks is shown again too: the
+widget saves it to temporary storage when it renders the form again, and holds its token like any
+upload.
 
 A token that is invalid, has expired, or was issued for a different field, or for the same field
 with different options, is refused: the field reports that the file is no longer available and

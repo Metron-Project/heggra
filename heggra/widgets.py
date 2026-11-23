@@ -15,7 +15,14 @@ from django.urls import reverse
 from django.utils.datastructures import MultiValueDict
 from django.utils.translation import gettext_lazy as _
 
-from .storage import CONFIG_SALT, Rules, TemporaryUpload, open_token, upload_context
+from .storage import (
+    CONFIG_SALT,
+    Rules,
+    TemporaryUpload,
+    open_token,
+    save_temporary,
+    upload_context,
+)
 from .views import too_large_message, validate
 
 
@@ -90,6 +97,8 @@ class UploadWidget(forms.ClearableFileInput):
         self.uploads: dict[str, TemporaryUpload] = {}
         # The checks of files submitted with the form, which the form reads more than once.
         self.file_checks: dict[str, tuple[UploadedFile, list[str]]] = {}
+        # The files submitted with the form that were saved to temporary storage, by name.
+        self.kept_files: dict[str, UploadedFile] = {}
 
     @override
     def __deepcopy__(self, memo: dict[int, Any]) -> Self:
@@ -97,6 +106,7 @@ class UploadWidget(forms.ClearableFileInput):
         widget = super().__deepcopy__(memo)
         widget.uploads = {}
         widget.file_checks = {}
+        widget.kept_files = {}
         return widget
 
     def token_name(self, name: str) -> str:
@@ -132,6 +142,21 @@ class UploadWidget(forms.ClearableFileInput):
         messages = validate(upload, self.rules(name), str(self.too_large_text))
         self.file_checks[name] = (upload, messages)
         return messages
+
+    def keep_file(self, name: str) -> None:
+        """Save the file submitted with the form as ``name`` to temporary storage, if it passed.
+
+        A form shown again, usually for its errors, then holds the file's token like any upload,
+        so the user doesn't have to pick it again. A form that is saved never stores a copy.
+        """
+        checked = self.file_checks.get(name)
+        if checked is None or checked[1] or self.kept_files.get(name) is checked[0]:
+            return
+        current = self.uploads.get(name)
+        if current is not None:
+            current.close()
+        self.uploads[name] = save_temporary(checked[0], self.rules(name))
+        self.kept_files[name] = checked[0]
 
     @override
     def use_required_attribute(self, initial: Any) -> bool:
@@ -191,6 +216,7 @@ class UploadWidget(forms.ClearableFileInput):
             "remove_text": str(self.remove_text),
             "too_large_text": str(self.too_large_text),
         }
+        self.keep_file(name)
         upload = self.uploads.get(name)
         widget.update(
             button_text=self.button_text,

@@ -332,6 +332,43 @@ def test_form_saves_a_file_submitted_with_it():
     assert document.cover.width == 4
 
 
+def token_in(html, field):
+    return html.split(f'name="{field}-token" value="')[1].split('"')[0]
+
+
+@pytest.mark.django_db
+def test_invalid_form_keeps_a_file_submitted_with_it(media_root):
+    files = MultiValueDict({"attachment": [text_file()], "cover": [png()]})
+    form = DocumentForm({}, files)
+    assert not form.is_valid()
+    html = form["attachment"].as_widget()
+    assert "notes.txt" in html
+    token = token_in(html, "attachment")
+    # Rendering again shows the same copy rather than saving another.
+    assert token_in(form["attachment"].as_widget(), "attachment") == token
+    assert len(list((media_root / storage.TEMP_DIR).iterdir())) == 1
+    data = {"title": "A", "attachment-token": token}
+    data["cover-token"] = token_in(form["cover"].as_widget(), "cover")
+    document = DocumentForm(data).save()
+    assert document.attachment.read() == b"hello"
+    assert document.cover.width == 4
+
+
+def test_refused_file_submitted_with_the_form_is_not_kept(media_root):
+    form = DocumentForm({}, MultiValueDict({"attachment": [text_file("notes.exe")]}))
+    assert not form.is_valid()
+    assert "attachment-token" not in form["attachment"].as_widget()
+    assert not (media_root / storage.TEMP_DIR).exists()
+
+
+@pytest.mark.django_db
+def test_saved_form_keeps_no_copy_of_a_file_submitted_with_it(media_root):
+    form = DocumentForm({"title": "A"}, MultiValueDict({"attachment": [text_file()]}))
+    assert form.is_valid(), form.errors
+    form.save()
+    assert not (media_root / storage.TEMP_DIR).exists()
+
+
 def test_a_file_submitted_with_the_form_is_checked_once(monkeypatch):
     calls = []
     monkeypatch.setattr("heggra.widgets.validate", lambda *args: calls.append(args) or [])

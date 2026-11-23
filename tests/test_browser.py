@@ -324,3 +324,21 @@ def test_file_sent_with_the_form(page, tmp_path):
     page.find_element(By.ID, "submit").click()
     widget.wait.until(lambda _: "saved" in page.find_element(By.TAG_NAME, "body").text)
     assert page.find_element(By.TAG_NAME, "body").text == "saved attachments/notes.txt"
+
+
+def test_file_sent_with_the_form_survives_errors(page, tmp_path):
+    page.execute_script(
+        "document.querySelectorAll('[hx-post]').forEach(e => e.removeAttribute('hx-post'))"
+    )
+    page.execute_script("htmx.process(document.body)")
+    widget = Widget(page, "attachment")
+    page.execute_script("arguments[0].removeAttribute('hx-trigger')", widget.input)
+    widget.input.send_keys(str(write(tmp_path, "notes.txt", b"hello")))
+    page.find_element(By.ID, "submit").click()
+    widget.wait.until(lambda _: page.find_elements(By.CSS_SELECTOR, ".errorlist"))
+    widget = Widget(page, "attachment")
+    assert widget.file_name == "notes.txt"
+    page.find_element(By.ID, "id_title").send_keys("A")
+    page.find_element(By.ID, "submit").click()
+    widget.wait.until(lambda _: "saved" in page.find_element(By.TAG_NAME, "body").text)
+    assert page.find_element(By.TAG_NAME, "body").text == "saved attachments/notes.txt"
