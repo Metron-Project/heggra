@@ -193,3 +193,19 @@ def test_cleanup_with_storage_whose_folders_dont_exist(settings):
     storage.save_temporary(upload(), RULES)
     assert not storage.get_storage().exists(storage.TEMP_DIR)
     assert storage.cleanup(timezone.now() + timedelta(days=2)) == 1
+
+
+def test_cleanup_skips_uploads_deleted_while_it_runs(media_root, monkeypatch):
+    storage.save_temporary(upload(), RULES)
+    temporary = storage.get_storage()
+    listdir = temporary.listdir
+
+    # As when another cleanup deletes a folder and a file after this one listed them.
+    def listdir_with_gone_entries(path):
+        folders, files = listdir(path)
+        if path == storage.TEMP_DIR:
+            return ["gone", *folders], files
+        return folders, ["gone.txt", *files]
+
+    monkeypatch.setattr(temporary, "listdir", listdir_with_gone_entries)
+    assert storage.cleanup(timezone.now() + timedelta(days=2)) == 1

@@ -175,13 +175,26 @@ def cleanup(now: datetime | None = None) -> int:
         return 0
     for folder in folders:
         folder_path = f"{TEMP_DIR}/{folder}"
-        _, files = storage.listdir(folder_path)
-        for filename in files:
-            path = f"{folder_path}/{filename}"
-            if storage.get_modified_time(path) < cutoff:
-                storage.delete(path)
-                deleted += 1
+        deleted += _cleanup_folder(storage, folder_path, cutoff)
         _remove_empty_folder(storage, folder_path)
+    return deleted
+
+
+def _cleanup_folder(storage: Storage, path: str, cutoff: datetime) -> int:
+    # Another cleanup running at the same time can delete a folder or file after it was listed.
+    try:
+        _, files = storage.listdir(path)
+    except FileNotFoundError:
+        return 0
+    deleted = 0
+    for filename in files:
+        file_path = f"{path}/{filename}"
+        try:
+            if storage.get_modified_time(file_path) < cutoff:
+                storage.delete(file_path)
+                deleted += 1
+        except FileNotFoundError:
+            continue
     return deleted
 
 
