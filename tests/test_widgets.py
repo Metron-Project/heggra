@@ -297,3 +297,14 @@ def test_a_new_token_closes_the_previous_upload():
     assert second is not first
     assert first.closed
     assert widget.uploads["attachment"] is second
+
+
+@pytest.mark.django_db
+def test_a_file_submitted_with_the_form_replaces_the_token():
+    token = token_for(DocumentForm(), "attachment", text_file("a.txt", b"A"))
+    files = MultiValueDict({"attachment": [text_file("b.txt", b"B")]})
+    form = DocumentForm({"title": "", "attachment-token": token}, files)
+    assert not form.is_valid()
+    html = form["attachment"].as_widget()
+    assert token not in html
+    assert "a.txt" not in html
