@@ -21,6 +21,8 @@ TEMP_DIR = "heggra"
 TOKEN_SALT = "heggra.upload"  # noqa: S105 - a signing namespace, not a secret.
 CONFIG_SALT = "heggra.config"
 DEFAULT_MAX_AGE = 60 * 60 * 24
+# Filesystems limit a file name's bytes, usually to 255, while UploadedFile limits its characters.
+MAX_NAME_BYTES = 200
 
 
 class Rules(TypedDict):
@@ -94,7 +96,15 @@ def clean_name(name: str) -> str:
         name = get_valid_filename(name)
     except SuspiciousFileOperation:
         return "upload"
-    return name if name.strip(".") else "upload"
+    if not name.strip("."):
+        return "upload"
+    if len(name.encode()) > MAX_NAME_BYTES:
+        path = PurePosixPath(name)
+        # The extension is kept, unless it's so long that it isn't one.
+        suffix = path.suffix if len(path.suffix.encode()) <= MAX_NAME_BYTES // 2 else ""
+        stem = name.removesuffix(suffix).encode()[: MAX_NAME_BYTES - len(suffix.encode())]
+        name = stem.decode(errors="ignore") + suffix
+    return name
 
 
 def save_temporary(file: UploadedFile, rules: Rules) -> str:

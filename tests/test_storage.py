@@ -82,6 +82,18 @@ def test_empty_names_get_a_default(name):
     assert storage.clean_name(name) == "upload"
 
 
+def test_long_names_are_cut_to_fit_the_filesystem(media_root):
+    token = storage.save_temporary(upload("あ" * 200 + ".png"), RULES)
+    name = storage.open_token(token, RULES).name
+    assert len(name.encode()) <= storage.MAX_NAME_BYTES
+    assert name == "あ" * 65 + ".png"
+
+
+def test_long_extensions_are_cut_too():
+    name = storage.clean_name("notes." + "x" * 300)
+    assert name == "notes." + "x" * (storage.MAX_NAME_BYTES - 6)
+
+
 def test_upload_without_a_usable_name():
     token = storage.save_temporary(upload("@@@"), RULES)
     assert storage.open_token(token, RULES).name == "upload"
