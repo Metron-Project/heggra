@@ -21,7 +21,7 @@ def run():
 def test_cleanup(settings, count, message):
     for _ in range(count):
         storage.save_temporary(SimpleUploadedFile("a.txt", b"a"), RULES)
-    settings.HEGGRA_MAX_AGE = -1
+    settings.HEGGRA_MAX_AGE = -storage.CLEANUP_GRACE - 1
     assert run() == message
 
 

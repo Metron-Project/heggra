@@ -8,9 +8,9 @@ from heggra.storage import cleanup
 
 
 class Command(BaseCommand):
-    """Delete uploads older than ``HEGGRA_MAX_AGE``, whose tokens no longer work."""
+    """Delete uploads whose tokens stopped working over an hour ago."""
 
-    help = "Delete temporary uploads older than HEGGRA_MAX_AGE."
+    help = "Delete temporary uploads older than HEGGRA_MAX_AGE plus an hour."
 
     @override
     def handle(self, *args: Any, **options: Any) -> None:

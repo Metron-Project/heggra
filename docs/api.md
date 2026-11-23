@@ -33,7 +33,7 @@
 ## Management commands
 
 `heggra_cleanup`
-: Deletes uploads older than `HEGGRA_MAX_AGE`.
+: Deletes uploads older than `HEGGRA_MAX_AGE` plus an hour.
 
 ## System checks
 

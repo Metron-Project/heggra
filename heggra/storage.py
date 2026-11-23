@@ -21,6 +21,8 @@ TEMP_DIR = "heggra"
 TOKEN_SALT = "heggra.upload"  # noqa: S105 - a signing namespace, not a secret.
 CONFIG_SALT = "heggra.config"
 DEFAULT_MAX_AGE = 60 * 60 * 24
+# How long cleanup waits after a token expires, so it can't delete a file a form is still saving.
+CLEANUP_GRACE = 60 * 60
 # Filesystems limit a file name's bytes, usually to 255, while UploadedFile limits its characters.
 MAX_NAME_BYTES = 200
 
@@ -155,9 +157,13 @@ def upload_context(name: str, size: int, token: str, rules: Rules) -> dict[str, 
 
 
 def cleanup(now: datetime | None = None) -> int:
-    """Delete uploads older than ``HEGGRA_MAX_AGE`` and return how many were deleted."""
+    """Delete uploads older than ``HEGGRA_MAX_AGE`` plus an hour, and return how many were deleted.
+
+    A file is saved just before its token is signed, so it's a little older than the token, and a
+    form that checked a token about to expire reads the file only when it saves.
+    """
     storage = get_storage()
-    cutoff = (now or timezone.now()) - timedelta(seconds=get_max_age())
+    cutoff = (now or timezone.now()) - timedelta(seconds=get_max_age() + CLEANUP_GRACE)
     deleted = 0
     # Object storages such as S3 have no folders, so exists() is false for the prefix.
     try:

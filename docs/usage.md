@@ -83,8 +83,9 @@ Subclass the widget to change its text:
 ## Cleaning up
 
 Uploads stay in temporary storage after their form is saved, and when a form is never submitted.
-The `heggra_cleanup` command deletes those older than `HEGGRA_MAX_AGE`, whose tokens no longer
-work. Run it on a schedule, such as daily from cron:
+The `heggra_cleanup` command deletes those older than `HEGGRA_MAX_AGE` plus an hour, whose tokens no
+longer work. The extra hour lets a form that accepted a token just before it expired finish saving.
+Run the command on a schedule, such as daily from cron:
 
 ```
 python manage.py heggra_cleanup

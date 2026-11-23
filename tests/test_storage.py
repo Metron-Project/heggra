@@ -155,6 +155,13 @@ def test_cleanup_deletes_only_old_uploads(media_root):
     assert list((media_root / storage.TEMP_DIR).iterdir()) == []
 
 
+def test_cleanup_waits_after_tokens_expire():
+    storage.save_temporary(upload(), RULES)
+    expired = timezone.now() + timedelta(seconds=storage.get_max_age() + 60)
+    assert storage.cleanup(expired) == 0
+    assert storage.cleanup(expired + timedelta(seconds=storage.CLEANUP_GRACE)) == 1
+
+
 def test_cleanup_without_uploads():
     assert storage.cleanup() == 0
 
