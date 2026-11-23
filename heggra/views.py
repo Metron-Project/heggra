@@ -78,11 +78,12 @@ def upload(request: HttpRequest) -> HttpResponse:
     if messages:
         return _error(request, config, messages, 422)
 
-    token = save_temporary(file, rules)
+    # The stored file's name is cleaned, and the widget shows the name the form will save.
+    saved = save_temporary(file, rules)
     context = {
         "classes": config["classes"],
         "remove_text": config["remove_text"],
-        "upload": upload_context(file.name or "", file.size or 0, token, rules),
+        "upload": upload_context(saved.name or "", saved.size or 0, saved.token, rules),
     }
     return render(request, "heggra/file.html", context)
 

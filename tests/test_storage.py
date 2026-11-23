@@ -23,7 +23,7 @@ def upload(name="notes.txt", content=b"hello"):
 
 
 def test_round_trip():
-    token = storage.save_temporary(upload(), RULES)
+    token = storage.save_temporary(upload(), RULES).token
     file = storage.open_token(token, RULES)
     assert file is not None
     assert file.name == "notes.txt"
@@ -34,7 +34,7 @@ def test_round_trip():
 
 
 def test_upload_is_opened_when_read():
-    token = storage.save_temporary(upload(), RULES)
+    token = storage.save_temporary(upload(), RULES).token
     file = storage.open_token(token, RULES)
     assert file.closed
     assert file.read() == b"hello"
@@ -46,7 +46,7 @@ def test_upload_is_opened_when_read():
 
 
 def test_upload_closes_when_it_is_no_longer_used():
-    file = storage.open_token(storage.save_temporary(upload(), RULES), RULES)
+    file = storage.open_token(storage.save_temporary(upload(), RULES).token, RULES)
     file.read()
     content = file.file
     del file
@@ -55,16 +55,24 @@ def test_upload_closes_when_it_is_no_longer_used():
 
 
 def test_open_rewinds_an_open_upload():
-    file = storage.open_token(storage.save_temporary(upload(), RULES), RULES)
+    file = storage.open_token(storage.save_temporary(upload(), RULES).token, RULES)
     file.read()
     assert file.open().read() == b"hello"
     file.close()
 
 
 def test_closing_an_unread_upload():
-    file = storage.open_token(storage.save_temporary(upload(), RULES), RULES)
+    file = storage.open_token(storage.save_temporary(upload(), RULES).token, RULES)
     file.close()
     assert file.closed
+
+
+def test_save_returns_the_stored_upload():
+    saved = storage.save_temporary(upload("my notes.txt"), RULES)
+    assert saved.name == "my_notes.txt"
+    assert saved.size == 5
+    assert saved.read() == b"hello"
+    saved.close()
 
 
 def test_file_is_saved_under_the_temporary_folder(media_root):
@@ -73,7 +81,7 @@ def test_file_is_saved_under_the_temporary_folder(media_root):
 
 
 def test_unsafe_names_are_cleaned():
-    token = storage.save_temporary(upload("../../etc/pass wd"), RULES)
+    token = storage.save_temporary(upload("../../etc/pass wd"), RULES).token
     assert storage.open_token(token, RULES).name == "pass_wd"
 
 
@@ -83,7 +91,7 @@ def test_empty_names_get_a_default(name):
 
 
 def test_long_names_are_cut_to_fit_the_filesystem(media_root):
-    token = storage.save_temporary(upload("あ" * 200 + ".png"), RULES)
+    token = storage.save_temporary(upload("あ" * 200 + ".png"), RULES).token
     name = storage.open_token(token, RULES).name
     assert len(name.encode()) <= storage.MAX_NAME_BYTES
     assert name == "あ" * 65 + ".png"
@@ -95,28 +103,28 @@ def test_long_extensions_are_cut_too():
 
 
 def test_upload_without_a_usable_name():
-    token = storage.save_temporary(upload("@@@"), RULES)
+    token = storage.save_temporary(upload("@@@"), RULES).token
     assert storage.open_token(token, RULES).name == "upload"
 
 
 def test_token_is_bound_to_its_rules():
-    token = storage.save_temporary(upload(), RULES)
+    token = storage.save_temporary(upload(), RULES).token
     assert storage.open_token(token, {**RULES, "name": "other"}) is None
 
 
 def test_tampered_token():
-    token = storage.save_temporary(upload(), RULES)
+    token = storage.save_temporary(upload(), RULES).token
     assert storage.open_token(token + "x", RULES) is None
 
 
 def test_expired_token(settings):
-    token = storage.save_temporary(upload(), RULES)
+    token = storage.save_temporary(upload(), RULES).token
     settings.HEGGRA_MAX_AGE = -1
     assert storage.open_token(token, RULES) is None
 
 
 def test_missing_file():
-    token = storage.save_temporary(upload(), RULES)
+    token = storage.save_temporary(upload(), RULES).token
     storage.get_storage().delete(storage.load_token(token)["path"])
     assert storage.open_token(token, RULES) is None
 
@@ -124,7 +132,7 @@ def test_missing_file():
 def test_content_type_is_guessed_when_missing():
     file = upload("notes.txt")
     file.content_type = None
-    token = storage.save_temporary(file, RULES)
+    token = storage.save_temporary(file, RULES).token
     assert storage.open_token(token, RULES).content_type == "text/plain"
 
 

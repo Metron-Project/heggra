@@ -107,12 +107,13 @@ def clean_name(name: str) -> str:
     return name
 
 
-def save_temporary(file: UploadedFile, rules: Rules) -> str:
-    """Save ``file`` to temporary storage and return a signed token for it."""
+def save_temporary(file: UploadedFile, rules: Rules) -> TemporaryUpload:
+    """Save ``file`` to temporary storage and return it, with a signed token for it."""
     name = clean_name(file.name or "")
     path = get_storage().save(f"{TEMP_DIR}/{uuid.uuid4().hex}/{name}", file)
     payload = {"path": path, "name": name, "type": file.content_type, "rules": rules}
-    return signing.dumps(payload, salt=TOKEN_SALT, compress=True)
+    token = signing.dumps(payload, salt=TOKEN_SALT, compress=True)
+    return TemporaryUpload(token, path, name=name, content_type=file.content_type, size=file.size)
 
 
 def load_token(token: str) -> dict[str, Any] | None:

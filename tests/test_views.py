@@ -39,6 +39,12 @@ def test_upload_renders_the_file(client):
     assert storage.open_token(token, rules).read() == b"hello"
 
 
+def test_upload_shows_the_name_the_form_saves(client):
+    html = post(client, text_file("my notes (1).txt")).content.decode()
+    assert "my_notes_1.txt" in html
+    assert "my notes" not in html
+
+
 def test_upload_without_a_usable_name(client):
     response = post(client, text_file("@@@"))
     assert response.status_code == 200
@@ -136,7 +142,7 @@ def image_token(file=None, **rules):
     rules = {"name": "cover", "max_size": None, "accept": [], "image": True, **rules}
     file = file or png()
     file.content_type = "image/png"
-    return storage.save_temporary(file, rules)
+    return storage.save_temporary(file, rules).token
 
 
 def test_preview(client):
@@ -155,7 +161,7 @@ def test_preview_bad_token(client):
 
 def test_preview_of_a_file_that_is_not_an_image(client):
     rules = {"name": "attachment", "max_size": None, "accept": [], "image": False}
-    token = storage.save_temporary(text_file(), rules)
+    token = storage.save_temporary(text_file(), rules).token
     assert client.get(reverse("heggra:preview", args=[token])).status_code == 404
 
 
@@ -163,7 +169,7 @@ def test_preview_without_an_image_type(client):
     file = text_file("cover.png")
     token = storage.save_temporary(
         file, {"name": "cover", "max_size": None, "accept": [], "image": True}
-    )
+    ).token
     assert client.get(reverse("heggra:preview", args=[token])).status_code == 404
 
 

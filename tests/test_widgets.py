@@ -20,7 +20,7 @@ def text_file(name="notes.txt", content=b"hello"):
 
 
 def token_for(form, field, file):
-    return storage.save_temporary(file, form.fields[field].widget.rules(field))
+    return storage.save_temporary(file, form.fields[field].widget.rules(field)).token
 
 
 def config_of(html):
@@ -134,7 +134,7 @@ def test_value_from_token():
 
 def test_token_for_another_field_is_ignored():
     form = DocumentForm()
-    token = storage.save_temporary(text_file(), form.fields["cover"].widget.rules("cover"))
+    token = storage.save_temporary(text_file(), form.fields["cover"].widget.rules("cover")).token
     widget = form.fields["attachment"].widget
     assert (
         widget.value_from_datadict({"attachment-token": token}, MultiValueDict(), "attachment")
