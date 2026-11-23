@@ -55,6 +55,8 @@ cover/
 # Translations
 *.mo
 *.pot
+# Django reads only compiled catalogs, so heggra's are committed to be in the wheel.
+!heggra/locale/**/*.mo
 
 # Django stuff:
 *.log

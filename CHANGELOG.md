@@ -9,3 +9,4 @@
   `HEGGRA_STORAGE`, `HEGGRA_MAX_AGE` and `HEGGRA_LOGIN_REQUIRED` settings
 - Add the optional `heggra/layout.css`
 - Add an example project styled with Bulma
+- Add an Italian translation

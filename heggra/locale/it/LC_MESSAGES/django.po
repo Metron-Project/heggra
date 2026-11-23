@@ -1,0 +1,45 @@
+# Italian translation catalog for heggra.
+# Copyright (C) 2026 Metron Project
+# This file is distributed under the same license as the heggra package.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: heggra\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-11-23 08:27-0600\n"
+"PO-Revision-Date: 2026-11-23 08:30-0600\n"
+"Last-Translator: Metron Project\n"
+"Language-Team: Italian\n"
+"Language: it\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+#, python-format
+msgid "The file can't be larger than %(size)s."
+msgstr "Il file non può superare %(size)s."
+
+msgid "This page has expired. Reload it to upload files."
+msgstr "Questa pagina è scaduta. Ricaricala per caricare i file."
+
+msgid "Log in to upload files."
+msgstr "Accedi per caricare i file."
+
+msgid "No file was submitted."
+msgstr "Non è stato inviato alcun file."
+
+msgid "Choose a file…"
+msgstr "Scegli un file…"
+
+msgid "or drop it here"
+msgstr "o trascinalo qui"
+
+msgid "Remove"
+msgstr "Rimuovi"
+
+msgid "The upload failed. Please try again."
+msgstr "Il caricamento non è riuscito. Riprova."
+
+msgid "The uploaded file is no longer available. Please upload it again."
+msgstr "Il file caricato non è più disponibile. Caricalo di nuovo."

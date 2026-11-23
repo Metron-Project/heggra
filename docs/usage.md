@@ -109,6 +109,44 @@ Subclass the widget to change its text:
 | `initial_text` | `"Currently"`, before the current file |
 | `clear_checkbox_label` | `"Clear"` |
 
+## Translations
+
+heggra's text is marked for translation, and heggra ships catalogs for these languages:
+
+- Italian (`it`)
+
+Nothing needs to be set up beyond Django's usual
+[translation settings](https://docs.djangoproject.com/en/stable/topics/i18n/translation/), such as
+`LANGUAGES` and `LocaleMiddleware`: Django finds heggra's catalogs because `heggra` is in
+`INSTALLED_APPS`. `initial_text` and `clear_checkbox_label` come from Django's
+`ClearableFileInput`, so Django's own catalogs translate them.
+
+The widget renders its text in the language active when the form is rendered, and the upload view
+renders its errors in the language of the upload's request. With `LocaleMiddleware`, both are the
+user's language.
+
+The upload view has three messages of its own, which the widget's attributes don't change:
+
+- `"This page has expired. Reload it to upload files."`, when the page is older than
+  `HEGGRA_MAX_AGE`
+- `"Log in to upload files."`, when `HEGGRA_LOGIN_REQUIRED` is on and the user isn't logged in
+- `"No file was submitted."`
+
+To change one form's text, subclass the widget as above. To change a translation everywhere, or
+add one for a language heggra doesn't ship, put entries with the same `msgid` in a catalog in one
+of your `LOCALE_PATHS`, which Django reads before an app's catalogs. `makemessages` doesn't extract
+strings from installed packages, and marks entries it can't find in your code as obsolete, so keep
+these in a directory of their own, compiled with `compilemessages`:
+
+```python
+LOCALE_PATHS = [
+    BASE_DIR / "locale",  # your project's catalogs, which makemessages writes
+    BASE_DIR / "locale_overrides",  # entries for heggra's strings, written by hand
+]
+```
+
+A translation of heggra into a new language is also welcome as a pull request.
+
 ## Cleaning up
 
 Uploads stay in temporary storage after their form is saved, and when a form is never submitted.
