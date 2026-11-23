@@ -49,6 +49,7 @@ class UploadWidget(forms.ClearableFileInput):
     remove_text = _("Remove")
     too_large_text = _("The file can't be larger than %(size)s.")
     failed_text = _("The upload failed. Please try again.")
+    expired_text = _("The uploaded file is no longer available. Please upload it again.")
 
     class Media:
         js = ("heggra/heggra.js",)
@@ -148,6 +149,9 @@ class UploadWidget(forms.ClearableFileInput):
         token = data.get(self.token_name(name))
         if upload is None and token:
             upload = self.pending_upload(name, token)
+            # The user uploaded a file, so its loss is an error rather than no file.
+            if upload is None:
+                messages = [str(self.expired_text)]
         checkbox_name = self.clear_checkbox_name(name)
         self.checked = checkbox_name in data
         if not self.is_required and CheckboxInput().value_from_datadict(data, files, checkbox_name):

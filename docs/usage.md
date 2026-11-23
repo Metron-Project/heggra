@@ -45,8 +45,10 @@ If the form has errors, the widget shows the uploaded file again, so the user do
 it again. If JavaScript doesn't run, or the form is submitted before the upload has finished, the
 file goes up with the form like any file input.
 
-A token that is invalid, has expired, or was issued for a different field counts as no file: a
-required field reports that it is required, and an optional field keeps its current file.
+A token that is invalid, has expired, or was issued for a different field, or for the same field
+with different options, is refused: the field reports that the file is no longer available and
+asks for it again, and an optional field keeps its current file until the form is saved without
+errors. Checking the clear checkbox still clears the field.
 
 ## Formsets
 
@@ -88,6 +90,7 @@ Subclass the widget to change its text:
 | `remove_text` | `"Remove"` |
 | `too_large_text` | `"The file can't be larger than %(size)s."` |
 | `failed_text` | `"The upload failed. Please try again."` |
+| `expired_text` | `"The uploaded file is no longer available. Please upload it again."`, for a submitted token that is invalid or has expired |
 | `initial_text` | `"Currently"`, before the current file |
 | `clear_checkbox_label` | `"Clear"` |
 

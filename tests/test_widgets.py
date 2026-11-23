@@ -176,14 +176,47 @@ def test_value_from_token():
     assert value.read() == b"hello"
 
 
-def test_token_for_another_field_is_ignored():
+EXPIRED = "The uploaded file is no longer available. Please upload it again."
+
+
+def test_token_for_another_field_is_refused():
     form = DocumentForm()
     token = storage.save_temporary(text_file(), form.fields["cover"].widget.rules("cover")).token
-    widget = form.fields["attachment"].widget
-    assert (
-        widget.value_from_datadict({"attachment-token": token}, MultiValueDict(), "attachment")
-        is None
-    )
+    form = DocumentForm({"title": "A", "attachment-token": token})
+    assert form.errors == {"attachment": [EXPIRED]}
+
+
+@pytest.mark.parametrize("token", ["tampered", None])
+def test_unusable_token_is_refused(settings, token):
+    form = DocumentForm()
+    if token is None:
+        token = token_for(form, "attachment", text_file())
+        settings.HEGGRA_MAX_AGE = -1
+    form = DocumentForm({"title": "A", "attachment-token": token})
+    assert form.errors == {"attachment": [EXPIRED]}
+
+
+@pytest.mark.django_db
+def test_unusable_token_keeps_the_current_file_with_an_error(media_root):
+    document = Document.objects.create(title="A", attachment=text_file())
+    form = DocumentForm({"title": "A", "attachment-token": "tampered"}, instance=document)
+    assert form.errors == {"attachment": [EXPIRED]}
+    document.refresh_from_db()
+    assert document.attachment.read() == b"hello"
+
+
+@pytest.mark.django_db
+def test_clear_with_an_unusable_token_clears(media_root):
+    document = Document.objects.create(title="A", attachment=text_file())
+    data = {"title": "A", "attachment-token": "tampered", "attachment-clear": "on"}
+    form = DocumentForm(data, instance=document)
+    assert form.is_valid(), form.errors
+    assert not form.save().attachment
+
+
+def test_empty_token_is_no_file():
+    form = DocumentForm({"title": "A", "attachment-token": ""})
+    assert form.is_valid(), form.errors
 
 
 def test_clear():
