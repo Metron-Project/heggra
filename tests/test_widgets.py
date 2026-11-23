@@ -1,0 +1,546 @@
+import json
+from html import unescape
+
+import pytest
+from django import forms
+from django.core import signing
+from django.core.exceptions import ImproperlyConfigured
+from django.core.files.uploadedfile import SimpleUploadedFile
+from django.utils.datastructures import MultiValueDict
+
+from heggra import UploadWidget, storage
+
+from .forms import DocumentForm
+from .images import image, png
+from .models import Document, Picture
+
+
+def text_file(name="notes.txt", content=b"hello"):
+    return SimpleUploadedFile(name, content, content_type="text/plain")
+
+
+def token_for(form, field, file):
+    return storage.save_temporary(file, form.fields[field].widget.rules(field)).token
+
+
+def config_of(html):
+    hx_vals = html.split('hx-vals="')[1].split('"')[0]
+    value = json.loads(unescape(hx_vals))["heggra-config"]
+    return signing.loads(value, salt=storage.CONFIG_SALT)
+
+
+def test_rules():
+    widget = UploadWidget(max_size=10, accept=[".TXT", "pdf", "txt"])
+    assert widget.rules("doc") == {
+        "name": "doc",
+        "max_size": 10,
+        "accept": ["pdf", "txt"],
+        "image": False,
+    }
+
+
+def test_image_needs_pillow(monkeypatch):
+    monkeypatch.setattr("heggra.widgets.find_spec", lambda name: None)
+    with pytest.raises(ImproperlyConfigured, match="Pillow"):
+        UploadWidget(image=True)
+
+
+@pytest.mark.parametrize("max_size", [0, -1])
+def test_max_size_must_be_positive(max_size):
+    with pytest.raises(ValueError, match="max_size"):
+        UploadWidget(max_size=max_size)
+
+
+@pytest.mark.parametrize("extension", ["", ".", ".."])
+def test_accept_needs_extensions(extension):
+    with pytest.raises(ValueError, match="empty extension"):
+        UploadWidget(accept=["pdf", extension])
+
+
+@pytest.mark.parametrize("extension", ["tar.gz", ".tar.gz", "gz."])
+def test_accept_refuses_multi_part_extensions(extension):
+    with pytest.raises(ValueError, match="multi-part"):
+        UploadWidget(accept=["pdf", extension])
+
+
+def test_accept_refuses_a_string():
+    with pytest.raises(TypeError, match="not a string"):
+        UploadWidget(accept="pdf")
+
+
+def test_render():
+    html = DocumentForm()["attachment"].as_widget()
+    assert 'class="heggra ' in html
+    assert 'id="id_attachment"' in html
+    assert 'class="heggra-input"' in html
+    assert 'accept=".pdf,.txt"' in html
+    assert 'hx-post="/heggra/upload/"' in html
+    assert 'hx-target="this"' in html
+    assert 'hx-select="unset"' in html
+    assert 'hx-confirm="unset"' in html
+    assert 'hx-push-url="false"' in html
+    assert 'hx-ext="ignore:json-enc"' in html
+    assert 'hx-params="attachment,heggra-config,csrfmiddlewaretoken"' in html
+    assert 'data-heggra-max-size="1024"' in html
+    assert "required" not in html
+    assert "checked" not in html
+    assert "heggra-current" not in html
+    assert config_of(html) == {
+        "rules": {"name": "attachment", "max_size": 1024, "accept": ["pdf", "txt"], "image": False},
+        "classes": {},
+        "remove_text": "Remove",
+        "too_large_text": "The file can't be larger than %(size)s.",
+    }
+
+
+def test_too_large_text_reaches_the_upload_view():
+    class Widget(UploadWidget):
+        too_large_text = "Too big, over %(size)s!"
+
+    assert config_of(Widget(max_size=10).render("doc", None))["too_large_text"] == (
+        "Too big, over %(size)s!"
+    )
+
+
+@pytest.mark.parametrize(
+    ("text", "shown"),
+    [
+        ("Over %(size)s (100% of the limit)", "Over 10\xa0bytes (100% of the limit)"),
+        ("Over %(size)s, 100%% of it", "Over 10\xa0bytes, 100% of it"),
+    ],
+)
+def test_too_large_text_with_a_percent_sign(text, shown):
+    class Widget(UploadWidget):
+        too_large_text = text
+
+    html = Widget(max_size=10).render("doc", None)
+    assert f'data-heggra-too-large="{shown}"' in unescape(html)
+    file = text_file(content=b"x" * 20)
+    assert Widget(max_size=10).check("doc", file) == [shown]
+
+
+def test_render_image_accepts_images():
+    html = DocumentForm()["cover"].as_widget()
+    assert 'accept="image/*"' in html
+    assert "data-heggra-max-size" not in html
+
+
+def test_default_id_without_auto_id():
+    html = DocumentForm(auto_id=False)["attachment"].as_widget()
+    assert 'id="heggra_attachment"' in html
+
+
+def test_classes_merge_with_settings(settings):
+    settings.HEGGRA_CLASSES = {"root": "file", "input": "file-input", "preview": "x"}
+    html = DocumentForm()["cover"].as_widget()
+    assert 'class="heggra file"' in html
+    assert 'class="heggra-input file-input"' in html
+    assert config_of(html)["classes"] == {"root": "file", "input": "file-input", "preview": "image"}
+
+
+def test_prefixed_form():
+    html = DocumentForm(prefix="doc")["attachment"].as_widget()
+    assert 'hx-params="doc-attachment,heggra-config,csrfmiddlewaretoken"' in html
+    assert config_of(html)["rules"]["name"] == "doc-attachment"
+
+
+@pytest.mark.django_db
+def test_render_current_file(media_root):
+    document = Document.objects.create(title="A", cover=png())
+    html = DocumentForm(instance=document)["cover"].as_widget()
+    assert "heggra-current" in html
+    assert f'src="{document.cover.url}"' in html
+    assert 'name="cover-clear"' in html
+
+
+@pytest.mark.django_db
+def test_render_current_file_browsers_cant_show(media_root):
+    document = Document.objects.create(title="A", cover=image("cover.tif", "TIFF"))
+    html = DocumentForm(instance=document)["cover"].as_widget()
+    assert "heggra-current" in html
+    assert "cover.tif" in html
+    assert "<img" not in html
+
+
+def test_render_upload_browsers_cant_show():
+    form = DocumentForm()
+    # The upload view checks images first, which sets their real type.
+    file = image("cover.tif", "TIFF")
+    forms.ImageField().clean(file)
+    token = storage.save_temporary(file, form.fields["cover"].widget.rules("cover")).token
+    html = DocumentForm({"cover-token": token})["cover"].as_widget()
+    assert "cover.tif" in html
+    assert "<img" not in html
+
+
+def test_render_disabled():
+    form = DocumentForm()
+    form.fields["attachment"].disabled = True
+    assert " disabled" in form["attachment"].as_widget()
+
+
+def test_value_from_files():
+    form = DocumentForm()
+    widget = form.fields["attachment"].widget
+    file = text_file()
+    assert (
+        widget.value_from_datadict({}, MultiValueDict({"attachment": [file]}), "attachment") is file
+    )
+
+
+def test_value_from_token():
+    form = DocumentForm()
+    widget = form.fields["attachment"].widget
+    token = token_for(form, "attachment", text_file())
+    value = widget.value_from_datadict({"attachment-token": token}, MultiValueDict(), "attachment")
+    assert value.read() == b"hello"
+
+
+EXPIRED = "The uploaded file is no longer available. Please upload it again."
+
+
+def test_token_for_another_field_is_refused():
+    form = DocumentForm()
+    token = storage.save_temporary(text_file(), form.fields["cover"].widget.rules("cover")).token
+    form = DocumentForm({"title": "A", "attachment-token": token})
+    assert form.errors == {"attachment": [EXPIRED]}
+
+
+@pytest.mark.parametrize("token", ["tampered", None])
+def test_unusable_token_is_refused(settings, token):
+    form = DocumentForm()
+    if token is None:
+        token = token_for(form, "attachment", text_file())
+        settings.HEGGRA_MAX_AGE = -1
+    form = DocumentForm({"title": "A", "attachment-token": token})
+    assert form.errors == {"attachment": [EXPIRED]}
+
+
+@pytest.mark.django_db
+def test_unusable_token_keeps_the_current_file_with_an_error(media_root):
+    document = Document.objects.create(title="A", attachment=text_file())
+    form = DocumentForm({"title": "A", "attachment-token": "tampered"}, instance=document)
+    assert form.errors == {"attachment": [EXPIRED]}
+    document.refresh_from_db()
+    assert document.attachment.read() == b"hello"
+
+
+@pytest.mark.django_db
+def test_clear_with_an_unusable_token_clears(media_root):
+    document = Document.objects.create(title="A", attachment=text_file())
+    data = {"title": "A", "attachment-token": "tampered", "attachment-clear": "on"}
+    form = DocumentForm(data, instance=document)
+    assert form.is_valid(), form.errors
+    assert not form.save().attachment
+
+
+def test_empty_token_is_no_file():
+    form = DocumentForm({"title": "A", "attachment-token": ""})
+    assert form.is_valid(), form.errors
+
+
+def test_clear():
+    widget = DocumentForm().fields["attachment"].widget
+    data = {"attachment-clear": "on"}
+    assert widget.value_from_datadict(data, MultiValueDict(), "attachment") is False
+
+
+def test_clear_and_upload_contradict():
+    form = DocumentForm()
+    widget = form.fields["attachment"].widget
+    data = {
+        "attachment-clear": "on",
+        "attachment-token": token_for(form, "attachment", text_file()),
+    }
+    value = widget.value_from_datadict(data, MultiValueDict(), "attachment")
+    assert value is forms.widgets.FILE_INPUT_CONTRADICTION
+
+
+@pytest.mark.parametrize(
+    ("data", "omitted"),
+    [({}, True), ({"attachment-token": "x"}, False), ({"attachment-clear": "on"}, False)],
+)
+def test_value_omitted(data, omitted):
+    widget = UploadWidget()
+    assert widget.value_omitted_from_data(data, MultiValueDict(), "attachment") is omitted
+
+
+@pytest.mark.django_db
+def test_form_saves_the_upload():
+    form = DocumentForm()
+    data = {
+        "title": "A",
+        "attachment-token": token_for(form, "attachment", text_file()),
+        "cover-token": token_for(form, "cover", png()),
+    }
+    form = DocumentForm(data)
+    assert form.is_valid(), form.errors
+    document = form.save()
+    assert document.attachment.name == "attachments/notes.txt"
+    assert document.attachment.read() == b"hello"
+    assert document.cover.name == "covers/cover.png"
+    assert document.cover.width == 4
+
+
+@pytest.mark.django_db
+def test_invalid_form_keeps_the_upload():
+    form = DocumentForm()
+    token = token_for(form, "cover", png())
+    form = DocumentForm({"title": "", "cover-token": token})
+    assert not form.is_valid()
+    html = form["cover"].as_widget()
+    assert f'value="{token}"' in html
+    assert 'name="cover-token"' in html
+    assert 'class="heggra-preview image"' in html
+    assert "cover.png" in html
+    assert "data-heggra-remove" in html
+
+
+@pytest.mark.django_db
+def test_clearing_the_current_file(media_root):
+    document = Document.objects.create(title="A", attachment=text_file())
+    form = DocumentForm({"title": "A", "attachment-clear": "on"}, instance=document)
+    assert form.is_valid(), form.errors
+    assert not form.save().attachment
+
+
+@pytest.mark.django_db
+def test_clear_checkbox_stays_checked_after_an_error(media_root):
+    document = Document.objects.create(title="A", attachment=text_file())
+    form = DocumentForm({"title": "", "attachment-clear": "on"}, instance=document)
+    assert not form.is_valid()
+    html = form["attachment"].as_widget()
+    assert 'name="attachment-clear" id="attachment-clear_id" checked' in html
+
+
+def test_render_without_restrictions():
+    assert "accept" not in UploadWidget().render("doc", None)
+
+
+@pytest.mark.django_db
+def test_uploads_are_not_shared_between_forms():
+    token = token_for(DocumentForm(), "cover", png())
+    form = DocumentForm({"title": "", "cover-token": token})
+    assert not form.is_valid()
+    assert token in form["cover"].as_widget()
+    assert token not in DocumentForm()["cover"].as_widget()
+
+
+@pytest.mark.parametrize(
+    ("field", "file", "message"),
+    [
+        ("attachment", text_file(content=b"x" * 2048), "The file can't be larger than 1.0\xa0KB."),
+        ("attachment", text_file("notes.exe"), "File extension “exe” is not allowed."),
+        ("cover", text_file("cover.png"), "Upload a valid image."),
+    ],
+    ids=["too-large", "extension", "not-an-image"],
+)
+def test_form_checks_a_file_submitted_with_it(field, file, message):
+    form = DocumentForm({"title": "A"}, MultiValueDict({field: [file]}))
+    assert not form.is_valid()
+    assert message in form.errors[field][0]
+    assert "heggra" in form[field].as_widget()
+
+
+@pytest.mark.django_db
+def test_form_saves_a_file_submitted_with_it():
+    files = MultiValueDict({"attachment": [text_file()], "cover": [png()]})
+    form = DocumentForm({"title": "A"}, files)
+    assert form.is_valid(), form.errors
+    document = form.save()
+    assert document.attachment.read() == b"hello"
+    assert document.cover.width == 4
+
+
+def token_in(html, field):
+    return html.split(f'name="{field}-token" value="')[1].split('"')[0]
+
+
+@pytest.mark.django_db
+def test_invalid_form_keeps_a_file_submitted_with_it(media_root):
+    files = MultiValueDict({"attachment": [text_file()], "cover": [png()]})
+    form = DocumentForm({}, files)
+    assert not form.is_valid()
+    html = form["attachment"].as_widget()
+    assert "notes.txt" in html
+    token = token_in(html, "attachment")
+    # Rendering again shows the same copy rather than saving another.
+    assert token_in(form["attachment"].as_widget(), "attachment") == token
+    assert len(list((media_root / storage.TEMP_DIR).iterdir())) == 1
+    data = {"title": "A", "attachment-token": token}
+    data["cover-token"] = token_in(form["cover"].as_widget(), "cover")
+    document = DocumentForm(data).save()
+    assert document.attachment.read() == b"hello"
+    assert document.cover.width == 4
+
+
+def test_refused_file_submitted_with_the_form_is_not_kept(media_root):
+    form = DocumentForm({}, MultiValueDict({"attachment": [text_file("notes.exe")]}))
+    assert not form.is_valid()
+    assert "attachment-token" not in form["attachment"].as_widget()
+    assert not (media_root / storage.TEMP_DIR).exists()
+
+
+@pytest.mark.django_db
+def test_saved_form_keeps_no_copy_of_a_file_submitted_with_it(media_root):
+    form = DocumentForm({"title": "A"}, MultiValueDict({"attachment": [text_file()]}))
+    assert form.is_valid(), form.errors
+    form.save()
+    assert not (media_root / storage.TEMP_DIR).exists()
+
+
+def test_a_file_submitted_with_the_form_is_checked_once(monkeypatch):
+    calls = []
+    monkeypatch.setattr("heggra.widgets.validate", lambda *args: calls.append(args) or [])
+    form = DocumentForm({"title": ""}, MultiValueDict({"attachment": [text_file()]}))
+    assert not form.is_valid()
+    assert form.has_changed()
+    form["attachment"].as_widget()
+    assert len(calls) == 1
+
+
+@pytest.mark.django_db
+def test_upload_is_read_once_per_token():
+    token = token_for(DocumentForm(), "cover", png())
+    form = DocumentForm({"title": "", "cover-token": token})
+    assert not form.is_valid()
+    widget = form.fields["cover"].widget
+    upload = widget.uploads["cover"]
+    assert not upload.closed
+    form["cover"].as_widget()
+    assert form.has_changed()
+    assert widget.uploads["cover"] is upload
+
+
+def test_a_new_token_closes_the_previous_upload():
+    form = DocumentForm()
+    widget = form.fields["attachment"].widget
+    first = widget.value_from_datadict(
+        {"attachment-token": token_for(form, "attachment", text_file())}, {}, "attachment"
+    )
+    first.read()
+    second = widget.value_from_datadict(
+        {"attachment-token": token_for(form, "attachment", text_file())}, {}, "attachment"
+    )
+    assert second is not first
+    assert first.closed
+    assert widget.uploads["attachment"] is second
+
+
+@pytest.mark.django_db
+def test_a_file_submitted_with_the_form_replaces_the_token():
+    token = token_for(DocumentForm(), "attachment", text_file("a.txt", b"A"))
+    files = MultiValueDict({"attachment": [text_file("b.txt", b"B")]})
+    form = DocumentForm({"title": "", "attachment-token": token}, files)
+    assert not form.is_valid()
+    html = form["attachment"].as_widget()
+    assert token not in html
+    assert "a.txt" not in html
+
+
+def test_form_added_from_a_formset_empty_form(client):
+    class AttachmentForm(forms.Form):
+        attachment = forms.FileField(widget=UploadWidget(accept=["txt"]))
+
+    formset_class = forms.formset_factory(AttachmentForm)
+    html = formset_class().empty_form["attachment"].as_widget()
+    # As the page does when it adds a form: every __prefix__ becomes the form's index.
+    html = html.replace("__prefix__", "0")
+    assert 'hx-params="form-0-attachment,heggra-config,csrfmiddlewaretoken"' in html
+    hx_vals = json.loads(unescape(html.split('hx-vals="')[1].split('"')[0]))
+    response = client.post("/heggra/upload/", {**hx_vals, "form-0-attachment": text_file()})
+    token = response.content.decode().split('name="form-0-attachment-token" value="')[1]
+    data = {
+        "form-TOTAL_FORMS": "1",
+        "form-INITIAL_FORMS": "0",
+        "form-0-attachment-token": token.split('"')[0],
+    }
+    formset = formset_class(data)
+    assert formset.is_valid(), formset.errors
+    assert formset.forms[0].cleaned_data["attachment"].read() == b"hello"
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("through_form", [True, False])
+def test_upload_saves_to_an_image_field_with_dimension_fields(media_root, through_form):
+    class PictureForm(forms.ModelForm):
+        class Meta:
+            model = Picture
+            fields = ["image"]
+            widgets = {"image": UploadWidget(image=True)}
+
+    rules = PictureForm().fields["image"].widget.rules("image")
+    token = storage.save_temporary(png(size=(4, 3)), rules).token
+    if through_form:
+        form = PictureForm({"image-token": token})
+        assert form.is_valid(), form.errors
+        picture = form.save()
+    else:
+        # As code that hands the upload to the model itself, which reads its dimensions first.
+        picture = Picture.objects.create(image=storage.open_token(token, rules))
+    assert (picture.width, picture.height) == (4, 3)
+    assert picture.image.read() == png(size=(4, 3)).read()
+
+
+@pytest.mark.django_db
+def test_form_saves_an_upload_with_a_long_name(media_root):
+    form = DocumentForm()
+    token = token_for(form, "attachment", text_file("a" * 150 + ".txt"))
+    form = DocumentForm({"title": "A", "attachment-token": token})
+    assert form.is_valid(), form.errors
+    # The storage fits the whole path to the model field's max_length in turn.
+    name = form.save().attachment.name
+    assert name.startswith("attachments/aaa")
+    assert name.endswith(".txt")
+
+
+class PickyDocumentForm(DocumentForm):
+    def clean_attachment(self):
+        attachment = self.cleaned_data["attachment"]
+        if attachment and attachment.read() == b"nope":
+            raise forms.ValidationError("Not that file.")
+        return attachment
+
+
+def test_upload_the_field_rejected_is_not_shown_again():
+    token = token_for(PickyDocumentForm(), "attachment", text_file(content=b"nope"))
+    form = PickyDocumentForm({"title": "A", "attachment-token": token})
+    assert form.errors == {"attachment": ["Not that file."]}
+    html = form["attachment"].as_widget()
+    assert 'aria-invalid="true"' in html
+    assert "notes.txt" not in html
+    assert "attachment-token" not in html
+
+
+def test_file_submitted_with_the_form_the_field_rejected_is_not_kept(media_root):
+    files = MultiValueDict({"attachment": [text_file(content=b"nope")]})
+    form = PickyDocumentForm({"title": "A"}, files)
+    assert form.errors == {"attachment": ["Not that file."]}
+    assert "attachment-token" not in form["attachment"].as_widget()
+    assert not (media_root / storage.TEMP_DIR).exists()
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("submitted_with_the_form", [False, True])
+def test_upload_with_a_checked_clear_checkbox_is_shown_again(media_root, submitted_with_the_form):
+    document = Document.objects.create(title="A", attachment=text_file("old.txt"))
+    data = {"title": "A", "attachment-clear": "on"}
+    files = MultiValueDict()
+    if submitted_with_the_form:
+        files["attachment"] = text_file()
+    else:
+        data["attachment-token"] = token_for(DocumentForm(), "attachment", text_file())
+    form = DocumentForm(data, files, instance=document)
+    assert list(form.errors) == ["attachment"]
+    html = form["attachment"].as_widget()
+    assert "notes.txt" in html
+    assert "attachment-token" in html
+
+
+def test_upload_is_shown_again_once_the_clear_checkbox_is_unchecked():
+    widget = DocumentForm().fields["attachment"].widget
+    token = token_for(DocumentForm(), "attachment", text_file())
+    data = {"attachment-token": token, "attachment-clear": "on"}
+    widget.value_from_datadict(data, MultiValueDict(), "attachment")
+    widget.value_from_datadict({"attachment-token": token}, MultiValueDict(), "attachment")
+    assert widget.contradictions == set()

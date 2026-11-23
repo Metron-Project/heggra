@@ -1,0 +1,7 @@
+<div class="heggra-file {{ classes.file }}" data-heggra-upload>
+  {% if upload.preview_url %}<img class="heggra-preview {{ classes.preview }}" src="{{ upload.preview_url }}" alt="">{% endif %}
+  <span class="heggra-file-name {{ classes.file_name }}" data-heggra-file-name>{{ upload.name }}</span>
+  <span class="heggra-file-size {{ classes.file_size }}">{{ upload.size|filesizeformat }}</span>
+  {% if not disabled %}<button type="button" class="heggra-remove {{ classes.remove }}" data-heggra-remove>{{ remove_text }}</button>{% endif %}
+  <input type="hidden" name="{{ upload.field_name }}-token" value="{{ upload.token }}">
+</div>

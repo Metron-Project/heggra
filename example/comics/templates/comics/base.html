@@ -1,0 +1,18 @@
+{% load static %}<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block title %}Comics{% endblock %} · heggra example</title>
+    {# heggra needs htmx 2. Serve your own copies in a real project. #}
+    <script src="https://cdn.jsdelivr.net/npm/htmx.org@2.0.11/dist/htmx.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@1.0.4/css/bulma.min.css">
+    <link rel="stylesheet" href="{% static 'comics/site.css' %}">
+    {% block head %}{% endblock %}
+  </head>
+  <body>
+    <section class="section">
+      <main class="container is-max-tablet">{% block content %}{% endblock %}</main>
+    </section>
+  </body>
+</html>

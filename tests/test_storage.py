@@ -1,0 +1,243 @@
+import gc
+from datetime import timedelta
+
+import pytest
+from django.core.files.uploadedfile import SimpleUploadedFile
+from django.utils import timezone
+
+from heggra import storage
+
+RULES = {"name": "attachment", "max_size": None, "accept": [], "image": False}
+
+
+def upload(name="notes.txt", content=b"hello"):
+    return SimpleUploadedFile(name, content, content_type="text/plain")
+
+
+def test_round_trip():
+    token = storage.save_temporary(upload(), RULES).token
+    file = storage.open_token(token, RULES)
+    assert file is not None
+    assert file.name == "notes.txt"
+    assert file.size == 5
+    assert file.content_type == "text/plain"
+    assert file.read() == b"hello"
+    assert file.token == token
+
+
+def test_upload_is_opened_when_read():
+    token = storage.save_temporary(upload(), RULES).token
+    file = storage.open_token(token, RULES)
+    assert file.closed
+    assert file.read() == b"hello"
+    assert not file.closed
+    file.close()
+    assert file.closed
+    assert file.open().read() == b"hello"
+    file.close()
+
+
+def test_upload_closes_when_it_is_no_longer_used():
+    file = storage.open_token(storage.save_temporary(upload(), RULES).token, RULES)
+    file.read()
+    content = file.file
+    del file
+    gc.collect()
+    assert content.closed
+
+
+def test_closed_upload_is_read_again():
+    file = storage.open_token(storage.save_temporary(upload(), RULES).token, RULES)
+    file.read()
+    file.close()
+    assert file.read() == b"hello"
+    file.close()
+
+
+def test_open_rewinds_an_open_upload():
+    file = storage.open_token(storage.save_temporary(upload(), RULES).token, RULES)
+    file.read()
+    assert file.open().read() == b"hello"
+    file.close()
+
+
+def test_closing_an_unread_upload():
+    file = storage.open_token(storage.save_temporary(upload(), RULES).token, RULES)
+    file.close()
+    assert file.closed
+
+
+def test_save_returns_the_stored_upload():
+    saved = storage.save_temporary(upload("my notes.txt"), RULES)
+    assert saved.name == "my_notes.txt"
+    assert saved.size == 5
+    assert saved.read() == b"hello"
+    saved.close()
+
+
+def test_file_is_saved_under_the_temporary_folder(media_root):
+    storage.save_temporary(upload(), RULES)
+    assert len(list((media_root / storage.TEMP_DIR).glob("*/notes.txt"))) == 1
+
+
+def test_unsafe_names_are_cleaned():
+    token = storage.save_temporary(upload("../../etc/pass wd"), RULES).token
+    assert storage.open_token(token, RULES).name == "pass_wd"
+
+
+@pytest.mark.parametrize("name", ["", "...", " . ", "@@@", "$$$", "../.."])
+def test_empty_names_get_a_default(name):
+    assert storage.clean_name(name) == "upload"
+
+
+def test_long_names_are_cut_to_fit_the_filesystem(media_root):
+    token = storage.save_temporary(upload("あ" * 200 + ".png"), RULES).token
+    name = storage.open_token(token, RULES).name
+    assert len(name.encode()) <= storage.MAX_NAME_BYTES
+    assert name == "あ" * 65 + ".png"
+
+
+def test_long_names_are_cut_to_fit_a_model_file_field():
+    name = storage.clean_name("a" * 150 + ".txt")
+    assert name == "a" * 96 + ".txt"
+    assert len(name) == storage.MAX_NAME_LENGTH
+
+
+def test_long_extensions_are_cut_too():
+    name = storage.clean_name("notes." + "x" * 300)
+    assert name == "notes." + "x" * (storage.MAX_NAME_LENGTH - 6)
+
+
+def test_upload_without_a_usable_name():
+    token = storage.save_temporary(upload("@@@"), RULES).token
+    assert storage.open_token(token, RULES).name == "upload"
+
+
+def test_token_is_bound_to_its_rules():
+    token = storage.save_temporary(upload(), RULES).token
+    assert storage.open_token(token, {**RULES, "name": "other"}) is None
+
+
+def test_tampered_token():
+    token = storage.save_temporary(upload(), RULES).token
+    assert storage.open_token(token + "x", RULES) is None
+
+
+def test_expired_token(settings):
+    token = storage.save_temporary(upload(), RULES).token
+    settings.HEGGRA_MAX_AGE = -1
+    assert storage.open_token(token, RULES) is None
+
+
+@pytest.mark.usefixtures("lazy_storage")
+@pytest.mark.parametrize("lazy_storage", [False, True], indirect=True)
+def test_missing_file():
+    token = storage.save_temporary(upload(), RULES).token
+    storage.get_storage().delete(storage.load_token(token)["path"])
+    assert storage.open_token(token, RULES) is None
+
+
+def test_file_deleted_after_it_was_found(monkeypatch):
+    token = storage.save_temporary(upload(), RULES).token
+    storage.get_storage().delete(storage.load_token(token)["path"])
+    monkeypatch.setattr(type(storage.get_storage()), "exists", lambda self, name: True)
+    assert storage.open_token(token, RULES) is None
+
+
+def test_content_type_is_guessed_when_missing():
+    file = upload("notes.txt")
+    file.content_type = None
+    token = storage.save_temporary(file, RULES).token
+    assert storage.open_token(token, RULES).content_type == "text/plain"
+
+
+def test_upload_context_without_preview():
+    context = storage.upload_context("notes.txt", 5, "token", RULES, "text/plain")
+    assert context == {
+        "field_name": "attachment",
+        "name": "notes.txt",
+        "preview_url": None,
+        "size": 5,
+        "token": "token",
+    }
+
+
+def test_cleanup_deletes_only_old_uploads(media_root):
+    storage.save_temporary(upload(), RULES)
+    assert storage.cleanup() == 0
+    assert storage.cleanup(timezone.now() + timedelta(days=2)) == 1
+    assert list((media_root / storage.TEMP_DIR).iterdir()) == []
+
+
+def test_cleanup_waits_after_tokens_expire():
+    storage.save_temporary(upload(), RULES)
+    expired = timezone.now() + timedelta(seconds=storage.get_max_age() + 60)
+    assert storage.cleanup(expired) == 0
+    assert storage.cleanup(expired + timedelta(seconds=storage.CLEANUP_GRACE)) == 1
+
+
+def test_cleanup_without_uploads():
+    assert storage.cleanup() == 0
+
+
+def test_cleanup_with_storage_without_folders(settings):
+    settings.STORAGES = {
+        **settings.STORAGES,
+        "heggra": {"BACKEND": "django.core.files.storage.InMemoryStorage"},
+    }
+    settings.HEGGRA_STORAGE = "heggra"
+    storage.save_temporary(upload(), RULES)
+    assert storage.cleanup(timezone.now() + timedelta(days=2)) == 1
+
+
+def test_cleanup_with_storage_whose_folders_dont_exist(settings):
+    settings.STORAGES = {
+        **settings.STORAGES,
+        "heggra": {"BACKEND": "tests.storages.ObjectStorage"},
+    }
+    settings.HEGGRA_STORAGE = "heggra"
+    storage.save_temporary(upload(), RULES)
+    assert not storage.get_storage().exists(storage.TEMP_DIR)
+    assert storage.cleanup(timezone.now() + timedelta(days=2)) == 1
+
+
+def test_cleanup_skips_uploads_deleted_while_it_runs(media_root, monkeypatch):
+    storage.save_temporary(upload(), RULES)
+    temporary = storage.get_storage()
+    listdir = temporary.listdir
+
+    # As when another cleanup deletes a folder and a file after this one listed them.
+    def listdir_with_gone_entries(path):
+        folders, files = listdir(path)
+        if path == storage.TEMP_DIR:
+            return ["gone", *folders], files
+        return folders, ["gone.txt", *files]
+
+    monkeypatch.setattr(temporary, "listdir", listdir_with_gone_entries)
+    assert storage.cleanup(timezone.now() + timedelta(days=2)) == 1
+
+
+IMAGE_RULES = {**RULES, "image": True}
+
+
+@pytest.mark.parametrize(
+    ("rules", "content_type", "preview"),
+    [
+        (IMAGE_RULES, "image/png", True),
+        (IMAGE_RULES, "image/webp", True),
+        (IMAGE_RULES, "image/tiff", False),
+        (IMAGE_RULES, "application/postscript", False),
+        (IMAGE_RULES, None, False),
+        (RULES, "image/png", False),
+    ],
+)
+def test_upload_context_previews_images_browsers_show(rules, content_type, preview):
+    context = storage.upload_context("cover", 5, "token", rules, content_type)
+    assert (context["preview_url"] is not None) is preview
+
+
+def test_image_type_is_not_guessed_when_missing():
+    file = upload("cover.png")
+    file.content_type = None
+    token = storage.save_temporary(file, IMAGE_RULES).token
+    assert storage.open_token(token, IMAGE_RULES).content_type is None

@@ -33,6 +33,11 @@ Documentation = "https://heggra.readthedocs.io/"
 "Bug Tracker" = "https://github.com/Metron-Project/heggra/issues"
 Changelog = "https://github.com/Metron-Project/heggra/blob/main/CHANGELOG.md"
 
+[project.optional-dependencies]
+image = [
+    "pillow>=13.0.0",
+]
+
 [build-system]
 requires = ["uv_build>=0.13.6,<0.14.0"]
 build-backend = "uv_build"
@@ -144,6 +149,7 @@ convention = "pep257"
 [dependency-groups]
 dev = [
     "django-stubs>=6.1.2",
+    "pillow>=13.0.0",
     "pre-commit>=4.7.0",
     "pyright>=1.1.414",
     "pytest-cov>=7.1.0",

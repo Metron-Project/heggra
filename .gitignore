@@ -224,3 +224,8 @@ __marimo__/
 
 # Ignore AI agents
 CLAUDE.md
+
+# The example project's database and files.
+example/db.sqlite3
+example/media/
+example/uploads/

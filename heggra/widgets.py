@@ -1,0 +1,261 @@
+"""The form widget."""
+
+import json
+from collections.abc import Iterable, Mapping
+from importlib.util import find_spec
+from pathlib import PurePosixPath
+from typing import Any, Self, override
+
+from django import forms
+from django.conf import settings
+from django.core import signing
+from django.core.exceptions import ImproperlyConfigured, ValidationError
+from django.core.files.uploadedfile import UploadedFile
+from django.forms.widgets import FILE_INPUT_CONTRADICTION, CheckboxInput
+from django.urls import reverse
+from django.utils.datastructures import MultiValueDict
+from django.utils.translation import gettext_lazy as _
+
+from .storage import (
+    CONFIG_SALT,
+    PREVIEW_EXTENSIONS,
+    Rules,
+    TemporaryUpload,
+    open_token,
+    save_temporary,
+    upload_context,
+)
+from .views import too_large_message, validate
+
+
+class RefusedUpload:
+    """A file submitted with the form that breaks the widget's rules.
+
+    The form field fails it with the widget's messages, as soon as it reads the file's name.
+    """
+
+    def __init__(self, messages: list[str]) -> None:
+        self.messages = messages
+
+    @property
+    def name(self) -> str:
+        """Refuse the file."""
+        raise ValidationError(self.messages, code="invalid")
+
+
+class UploadWidget(forms.ClearableFileInput):
+    """File input that uploads a picked or dropped file at once, through htmx.
+
+    ``image=True`` checks that the file is an image Pillow can open and shows a preview.
+    ``max_size`` limits the file's size in bytes, and ``accept`` lists the allowed extensions,
+    such as ``["pdf", "txt"]``. ``classes`` maps the widget's elements to CSS classes, replacing
+    the ``HEGGRA_CLASSES`` setting's value for each key it sets.
+    """
+
+    template_name = "heggra/widget.html"
+    button_text = _("Choose a file…")
+    drop_text = _("or drop it here")
+    remove_text = _("Remove")
+    too_large_text = _("The file can't be larger than %(size)s.")
+    failed_text = _("The upload failed. Please try again.")
+    expired_text = _("The uploaded file is no longer available. Please upload it again.")
+
+    class Media:
+        js = ("heggra/heggra.js",)
+
+    def __init__(
+        self,
+        *,
+        image: bool = False,
+        max_size: int | None = None,
+        accept: Iterable[str] = (),
+        classes: dict[str, str] | None = None,
+        attrs: dict[str, Any] | None = None,
+    ) -> None:
+        if image and find_spec("PIL") is None:
+            raise ImproperlyConfigured("UploadWidget(image=True) needs Pillow: heggra[image].")
+        # No file could pass a limit of 0, and the browser's check reads 0 as no limit.
+        if max_size is not None and max_size < 1:
+            raise ValueError("UploadWidget's max_size must be at least 1 byte.")
+        # A string would be read as a list of one-letter extensions.
+        if isinstance(accept, str):
+            raise TypeError("UploadWidget's accept must be a list of extensions, not a string.")
+        super().__init__(attrs)
+        self.image = image
+        self.max_size = max_size
+        self.accept = sorted({extension.lower().lstrip(".") for extension in accept})
+        # An empty extension would allow only files without one.
+        if "" in self.accept:
+            raise ValueError("UploadWidget's accept can't contain an empty extension.")
+        # Django checks only a file's last extension, so "tar.gz" would refuse every file.
+        if multipart := [extension for extension in self.accept if "." in extension]:
+            message = (
+                f"UploadWidget's accept can't contain a multi-part extension: {multipart[0]!r}."
+            )
+            raise ValueError(message)
+        self.classes = classes or {}
+        # FileField.bound_data hands a bound form's initial value to the widget, so the widget
+        # remembers what it read, the way ClearableFileInput remembers its checkbox.
+        self.uploads: dict[str, TemporaryUpload] = {}
+        # The checks of files submitted with the form, which the form reads more than once.
+        self.file_checks: dict[str, tuple[UploadedFile, list[str]]] = {}
+        # The files submitted with the form that were saved to temporary storage, by name.
+        self.kept_files: dict[str, UploadedFile] = {}
+        # The names whose upload came with a checked clear checkbox, which says nothing about it.
+        self.contradictions: set[str] = set()
+
+    @override
+    def __deepcopy__(self, memo: dict[int, Any]) -> Self:
+        # Widget.__deepcopy__ copies shallowly, which would share uploads between forms.
+        widget = super().__deepcopy__(memo)
+        widget.uploads = {}
+        widget.file_checks = {}
+        widget.kept_files = {}
+        widget.contradictions = set()
+        return widget
+
+    def token_name(self, name: str) -> str:
+        """Return the name of the hidden input that submits an upload's token."""
+        return f"{name}-token"
+
+    def rules(self, name: str) -> Rules:
+        """Return what this widget accepts when rendered as ``name``."""
+        return {
+            "name": name,
+            "max_size": self.max_size,
+            "accept": self.accept,
+            "image": self.image,
+        }
+
+    def pending_upload(self, name: str, token: str) -> TemporaryUpload | None:
+        """Return the upload behind ``token``, reusing the one already read for ``name``."""
+        current = self.uploads.get(name)
+        if current is not None and current.token == token:
+            return current
+        upload = open_token(token, self.rules(name))
+        if upload is not None:
+            if current is not None:
+                current.close()
+            self.uploads[name] = upload
+        return upload
+
+    def check(self, name: str, upload: UploadedFile) -> list[str]:
+        """Return the reasons a file submitted with the form breaks this widget's rules."""
+        cached = self.file_checks.get(name)
+        if cached is not None and cached[0] is upload:
+            return cached[1]
+        messages = validate(upload, self.rules(name), str(self.too_large_text))
+        self.file_checks[name] = (upload, messages)
+        return messages
+
+    def keep_file(self, name: str) -> None:
+        """Save the file submitted with the form as ``name`` to temporary storage, if it passed.
+
+        A form shown again, usually for its errors, then holds the file's token like any upload,
+        so the user doesn't have to pick it again. A form that is saved never stores a copy.
+        """
+        checked = self.file_checks.get(name)
+        if checked is None or checked[1] or self.kept_files.get(name) is checked[0]:
+            return
+        current = self.uploads.get(name)
+        if current is not None:
+            current.close()
+        self.uploads[name] = save_temporary(checked[0], self.rules(name))
+        self.kept_files[name] = checked[0]
+
+    @override
+    def use_required_attribute(self, initial: Any) -> bool:
+        # The file input is emptied once its file has uploaded, so only the server can validate.
+        return False
+
+    @override
+    def value_from_datadict(
+        self, data: Mapping[str, Any], files: MultiValueDict[str, UploadedFile], name: str
+    ) -> Any:
+        # A file in FILES came with the form, when the script didn't run or hadn't finished. The
+        # upload view checked a token's file, but this one hasn't been checked yet.
+        upload: UploadedFile | None = files.get(name)
+        messages = self.check(name, upload) if upload is not None else []
+        token = data.get(self.token_name(name))
+        if upload is None and token:
+            upload = self.pending_upload(name, token)
+            # The user uploaded a file, so its loss is an error rather than no file.
+            if upload is None:
+                messages = [str(self.expired_text)]
+        checkbox_name = self.clear_checkbox_name(name)
+        self.checked = checkbox_name in data
+        self.contradictions.discard(name)
+        if not self.is_required and CheckboxInput().value_from_datadict(data, files, checkbox_name):
+            if not upload:
+                return False
+            self.contradictions.add(name)
+            return FILE_INPUT_CONTRADICTION
+        return RefusedUpload(messages) if messages else upload
+
+    @override
+    def value_omitted_from_data(
+        self, data: Mapping[str, Any], files: MultiValueDict[str, UploadedFile], name: str
+    ) -> bool:
+        return super().value_omitted_from_data(data, files, name) and (
+            self.token_name(name) not in data
+        )
+
+    @override
+    def get_context(self, name: str, value: Any, attrs: dict[str, Any] | None) -> dict[str, Any]:
+        context = super().get_context(name, value, attrs)
+        classes = {**getattr(settings, "HEGGRA_CLASSES", {}), **self.classes}
+        widget = context["widget"]
+        widget_attrs = widget["attrs"]
+        widget_attrs.setdefault("id", f"heggra_{name}")
+        widget_attrs["class"] = " ".join(
+            filter(None, ["heggra-input", classes.get("input"), widget_attrs.get("class")])
+        )
+        if self.accept:
+            widget_attrs.setdefault("accept", ",".join(f".{ext}" for ext in self.accept))
+        elif self.image:
+            widget_attrs.setdefault("accept", "image/*")
+        # ClearableFileInput puts the checkbox state in attrs, which would land on the file input.
+        checkbox_checked = widget_attrs.pop("checked", False)
+        disabled = bool(widget_attrs.get("disabled"))
+
+        rules = self.rules(name)
+        config = {
+            "rules": rules,
+            "classes": classes,
+            "remove_text": str(self.remove_text),
+            "too_large_text": str(self.too_large_text),
+        }
+        # A bound field with errors renders with aria-invalid. Its errors are about the file, unless
+        # it's only that the clear checkbox was checked too, so the file isn't offered again.
+        rejected = widget_attrs.get("aria-invalid") in {True, "true"}
+        upload = None
+        if not rejected or name in self.contradictions:
+            self.keep_file(name)
+            upload = self.uploads.get(name)
+        widget.update(
+            button_text=self.button_text,
+            checkbox_checked=checkbox_checked,
+            classes=classes,
+            hx_vals=json.dumps(
+                {"heggra-config": signing.dumps(config, salt=CONFIG_SALT, compress=True)}
+            ),
+            disabled=disabled,
+            drop_text=self.drop_text,
+            error_id=f"{widget_attrs['id']}_error",
+            failed_text=self.failed_text,
+            file_id=f"{widget_attrs['id']}_file",
+            # A saved file's type isn't stored, so its extension decides.
+            current_preview=self.image
+            and PurePosixPath(getattr(value, "name", None) or "").suffix.lower()
+            in PREVIEW_EXTENSIONS,
+            max_size=self.max_size,
+            remove_text=self.remove_text,
+            too_large_text=self.max_size
+            and too_large_message(str(self.too_large_text), self.max_size),
+            upload=upload
+            and upload_context(
+                upload.name or "", upload.size or 0, upload.token, rules, upload.content_type
+            ),
+            upload_url=reverse("heggra:upload"),
+        )
+        return context
