@@ -263,3 +263,31 @@ def test_a_file_submitted_with_the_form_is_checked_once(monkeypatch):
     assert form.has_changed()
     form["attachment"].as_widget()
     assert len(calls) == 1
+
+
+@pytest.mark.django_db
+def test_upload_is_read_once_per_token():
+    token = token_for(DocumentForm(), "cover", png())
+    form = DocumentForm({"title": "", "cover-token": token})
+    assert not form.is_valid()
+    widget = form.fields["cover"].widget
+    upload = widget.uploads["cover"]
+    assert not upload.closed
+    form["cover"].as_widget()
+    assert form.has_changed()
+    assert widget.uploads["cover"] is upload
+
+
+def test_a_new_token_closes_the_previous_upload():
+    form = DocumentForm()
+    widget = form.fields["attachment"].widget
+    first = widget.value_from_datadict(
+        {"attachment-token": token_for(form, "attachment", text_file())}, {}, "attachment"
+    )
+    first.read()
+    second = widget.value_from_datadict(
+        {"attachment-token": token_for(form, "attachment", text_file())}, {}, "attachment"
+    )
+    assert second is not first
+    assert first.closed
+    assert widget.uploads["attachment"] is second

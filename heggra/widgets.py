@@ -97,6 +97,18 @@ class UploadWidget(forms.ClearableFileInput):
             "image": self.image,
         }
 
+    def pending_upload(self, name: str, token: str) -> TemporaryUpload | None:
+        """Return the upload behind ``token``, reusing the one already read for ``name``."""
+        current = self.uploads.get(name)
+        if current is not None and current.token == token:
+            return current
+        upload = open_token(token, self.rules(name))
+        if upload is not None:
+            if current is not None:
+                current.close()
+            self.uploads[name] = upload
+        return upload
+
     def check(self, name: str, upload: UploadedFile) -> list[str]:
         """Return the reasons a file submitted with the form breaks this widget's rules."""
         cached = self.file_checks.get(name)
@@ -120,8 +132,8 @@ class UploadWidget(forms.ClearableFileInput):
         upload: UploadedFile | None = files.get(name)
         messages = self.check(name, upload) if upload is not None else []
         token = data.get(self.token_name(name))
-        if upload is None and token and (pending := open_token(token, self.rules(name))):
-            upload = self.uploads[name] = pending
+        if upload is None and token:
+            upload = self.pending_upload(name, token)
         checkbox_name = self.clear_checkbox_name(name)
         self.checked = checkbox_name in data
         if not self.is_required and CheckboxInput().value_from_datadict(data, files, checkbox_name):

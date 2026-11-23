@@ -1,3 +1,4 @@
+import gc
 from datetime import timedelta
 
 from django.core.files.storage import InMemoryStorage
@@ -29,6 +30,40 @@ def test_round_trip():
     assert file.content_type == "text/plain"
     assert file.read() == b"hello"
     assert file.token == token
+
+
+def test_upload_is_opened_when_read():
+    token = storage.save_temporary(upload(), RULES)
+    file = storage.open_token(token, RULES)
+    assert file.closed
+    assert file.read() == b"hello"
+    assert not file.closed
+    file.close()
+    assert file.closed
+    assert file.open().read() == b"hello"
+    file.close()
+
+
+def test_upload_closes_when_it_is_no_longer_used():
+    file = storage.open_token(storage.save_temporary(upload(), RULES), RULES)
+    file.read()
+    content = file.file
+    del file
+    gc.collect()
+    assert content.closed
+
+
+def test_open_rewinds_an_open_upload():
+    file = storage.open_token(storage.save_temporary(upload(), RULES), RULES)
+    file.read()
+    assert file.open().read() == b"hello"
+    file.close()
+
+
+def test_closing_an_unread_upload():
+    file = storage.open_token(storage.save_temporary(upload(), RULES), RULES)
+    file.close()
+    assert file.closed
 
 
 def test_file_is_saved_under_the_temporary_folder(media_root):

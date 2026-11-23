@@ -3,9 +3,10 @@
 import contextlib
 import mimetypes
 import uuid
+import weakref
 from datetime import datetime, timedelta
 from pathlib import Path, PurePosixPath
-from typing import Any, TypedDict
+from typing import Any, Self, TypedDict, override
 
 from django.conf import settings
 from django.core import signing
@@ -31,11 +32,48 @@ class Rules(TypedDict):
 
 
 class TemporaryUpload(UploadedFile):
-    """A file waiting in temporary storage, with the token that refers to it."""
+    """A file waiting in temporary storage, with the token that refers to it.
 
-    def __init__(self, token: str, **kwargs: Any) -> None:
+    The stored file is opened when it's first read, since a form reads an upload's value more
+    often than its content.
+    """
+
+    def __init__(self, token: str, path: str, **kwargs: Any) -> None:
+        self.path = path
+        self._file: Any = None
         super().__init__(**kwargs)
         self.token = token
+
+    @property
+    def file(self) -> Any:
+        """Return the stored file, opening it if it isn't open."""
+        if self._file is None:
+            self._file = get_storage().open(self.path, "rb")
+            # Nothing closes a file once a form has read or saved it, so it closes with the upload.
+            weakref.finalize(self, self._file.close)
+        return self._file
+
+    @file.setter
+    def file(self, value: Any) -> None:  # pyright: ignore[reportIncompatibleVariableOverride]
+        self._file = value
+
+    @property
+    @override
+    def closed(self) -> bool:
+        return self._file is None or self._file.closed
+
+    @override
+    def open(self, mode: str | None = None) -> Self:  # pyright: ignore[reportIncompatibleMethodOverride]
+        if self.closed:
+            self._file = None
+        else:
+            self.seek(0)
+        return self
+
+    @override
+    def close(self) -> None:
+        if self._file is not None:
+            self._file.close()
 
 
 def get_storage() -> Storage:
@@ -70,15 +108,13 @@ def open_token(token: str, rules: Rules) -> TemporaryUpload | None:
     payload = load_token(token)
     if payload is None or payload["rules"] != rules:
         return None
-    storage = get_storage()
     try:
-        content = storage.open(payload["path"], "rb")
-        size = storage.size(payload["path"])
+        size = get_storage().size(payload["path"])
     except FileNotFoundError:
         return None
     content_type = payload["type"] or mimetypes.guess_type(payload["name"])[0]
     return TemporaryUpload(
-        token, file=content, name=payload["name"], content_type=content_type, size=size
+        token, payload["path"], name=payload["name"], content_type=content_type, size=size
     )
 
 
