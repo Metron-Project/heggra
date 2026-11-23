@@ -46,6 +46,14 @@ def test_upload_closes_when_it_is_no_longer_used():
     assert content.closed
 
 
+def test_closed_upload_is_read_again():
+    file = storage.open_token(storage.save_temporary(upload(), RULES).token, RULES)
+    file.read()
+    file.close()
+    assert file.read() == b"hello"
+    file.close()
+
+
 def test_open_rewinds_an_open_upload():
     file = storage.open_token(storage.save_temporary(upload(), RULES).token, RULES)
     file.read()

@@ -12,7 +12,7 @@ from heggra import UploadWidget, storage
 
 from .forms import DocumentForm
 from .images import png
-from .models import Document
+from .models import Document, Picture
 
 
 def text_file(name="notes.txt", content=b"hello"):
@@ -368,3 +368,25 @@ def test_form_added_from_a_formset_empty_form(client):
     formset = formset_class(data)
     assert formset.is_valid(), formset.errors
     assert formset.forms[0].cleaned_data["attachment"].read() == b"hello"
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("through_form", [True, False])
+def test_upload_saves_to_an_image_field_with_dimension_fields(media_root, through_form):
+    class PictureForm(forms.ModelForm):
+        class Meta:
+            model = Picture
+            fields = ["image"]
+            widgets = {"image": UploadWidget(image=True)}
+
+    rules = PictureForm().fields["image"].widget.rules("image")
+    token = storage.save_temporary(png(size=(4, 3)), rules).token
+    if through_form:
+        form = PictureForm({"image-token": token})
+        assert form.is_valid(), form.errors
+        picture = form.save()
+    else:
+        # As code that hands the upload to the model itself, which reads its dimensions first.
+        picture = Picture.objects.create(image=storage.open_token(token, rules))
+    assert (picture.width, picture.height) == (4, 3)
+    assert picture.image.read() == png(size=(4, 3)).read()

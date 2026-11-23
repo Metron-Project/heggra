@@ -77,8 +77,11 @@ class TemporaryUpload(UploadedFile):
 
     @override
     def close(self) -> None:
+        # The next read opens the stored file again, as Django reads an image's dimensions and
+        # closes it before saving it.
         if self._file is not None:
             self._file.close()
+            self._file = None
 
 
 def get_storage() -> Storage:
