@@ -227,3 +227,39 @@ def test_uploads_are_not_shared_between_forms():
     assert not form.is_valid()
     assert token in form["cover"].as_widget()
     assert token not in DocumentForm()["cover"].as_widget()
+
+
+@pytest.mark.parametrize(
+    ("field", "file", "message"),
+    [
+        ("attachment", text_file(content=b"x" * 2048), "The file can't be larger than 1.0\xa0KB."),
+        ("attachment", text_file("notes.exe"), "File extension “exe” is not allowed."),
+        ("cover", text_file("cover.png"), "Upload a valid image."),
+    ],
+    ids=["too-large", "extension", "not-an-image"],
+)
+def test_form_checks_a_file_submitted_with_it(field, file, message):
+    form = DocumentForm({"title": "A"}, MultiValueDict({field: [file]}))
+    assert not form.is_valid()
+    assert message in form.errors[field][0]
+    assert "heggra" in form[field].as_widget()
+
+
+@pytest.mark.django_db
+def test_form_saves_a_file_submitted_with_it():
+    files = MultiValueDict({"attachment": [text_file()], "cover": [png()]})
+    form = DocumentForm({"title": "A"}, files)
+    assert form.is_valid(), form.errors
+    document = form.save()
+    assert document.attachment.read() == b"hello"
+    assert document.cover.width == 4
+
+
+def test_a_file_submitted_with_the_form_is_checked_once(monkeypatch):
+    calls = []
+    monkeypatch.setattr("heggra.widgets.validate", lambda *args: calls.append(args) or [])
+    form = DocumentForm({"title": ""}, MultiValueDict({"attachment": [text_file()]}))
+    assert not form.is_valid()
+    assert form.has_changed()
+    form["attachment"].as_widget()
+    assert len(calls) == 1

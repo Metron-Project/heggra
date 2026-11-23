@@ -8,7 +8,7 @@ from typing import Any, Self, override
 from django import forms
 from django.conf import settings
 from django.core import signing
-from django.core.exceptions import ImproperlyConfigured
+from django.core.exceptions import ImproperlyConfigured, ValidationError
 from django.core.files.uploadedfile import UploadedFile
 from django.forms.widgets import FILE_INPUT_CONTRADICTION, CheckboxInput
 from django.template.defaultfilters import filesizeformat
@@ -17,6 +17,22 @@ from django.utils.datastructures import MultiValueDict
 from django.utils.translation import gettext_lazy as _
 
 from .storage import CONFIG_SALT, Rules, TemporaryUpload, open_token, upload_context
+from .views import validate
+
+
+class RefusedUpload:
+    """A file submitted with the form that breaks the widget's rules.
+
+    The form field fails it with the widget's messages, as soon as it reads the file's name.
+    """
+
+    def __init__(self, messages: list[str]) -> None:
+        self.messages = messages
+
+    @property
+    def name(self) -> str:
+        """Refuse the file."""
+        raise ValidationError(self.messages, code="invalid")
 
 
 class UploadWidget(forms.ClearableFileInput):
@@ -57,12 +73,15 @@ class UploadWidget(forms.ClearableFileInput):
         # FileField.bound_data hands a bound form's initial value to the widget, so the widget
         # remembers what it read, the way ClearableFileInput remembers its checkbox.
         self.uploads: dict[str, TemporaryUpload] = {}
+        # The checks of files submitted with the form, which the form reads more than once.
+        self.file_checks: dict[str, tuple[UploadedFile, list[str]]] = {}
 
     @override
     def __deepcopy__(self, memo: dict[int, Any]) -> Self:
         # Widget.__deepcopy__ copies shallowly, which would share uploads between forms.
         widget = super().__deepcopy__(memo)
         widget.uploads = {}
+        widget.file_checks = {}
         return widget
 
     def token_name(self, name: str) -> str:
@@ -78,6 +97,15 @@ class UploadWidget(forms.ClearableFileInput):
             "image": self.image,
         }
 
+    def check(self, name: str, upload: UploadedFile) -> list[str]:
+        """Return the reasons a file submitted with the form breaks this widget's rules."""
+        cached = self.file_checks.get(name)
+        if cached is not None and cached[0] is upload:
+            return cached[1]
+        messages = validate(upload, self.rules(name), str(self.too_large_text))
+        self.file_checks[name] = (upload, messages)
+        return messages
+
     @override
     def use_required_attribute(self, initial: Any) -> bool:
         # The file input is emptied once its file has uploaded, so only the server can validate.
@@ -87,8 +115,10 @@ class UploadWidget(forms.ClearableFileInput):
     def value_from_datadict(
         self, data: Mapping[str, Any], files: MultiValueDict[str, UploadedFile], name: str
     ) -> Any:
-        # A file in FILES came with the form, when the script didn't run or hadn't finished.
+        # A file in FILES came with the form, when the script didn't run or hadn't finished. The
+        # upload view checked a token's file, but this one hasn't been checked yet.
         upload: UploadedFile | None = files.get(name)
+        messages = self.check(name, upload) if upload is not None else []
         token = data.get(self.token_name(name))
         if upload is None and token and (pending := open_token(token, self.rules(name))):
             upload = self.uploads[name] = pending
@@ -96,7 +126,7 @@ class UploadWidget(forms.ClearableFileInput):
         self.checked = checkbox_name in data
         if not self.is_required and CheckboxInput().value_from_datadict(data, files, checkbox_name):
             return FILE_INPUT_CONTRADICTION if upload else False
-        return upload
+        return RefusedUpload(messages) if messages else upload
 
     @override
     def value_omitted_from_data(

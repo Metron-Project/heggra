@@ -56,9 +56,11 @@ required field reports that it is required, and an optional field keeps its curr
 | `classes` | CSS classes for the widget's elements. See [Styling](styling.md) |
 | `attrs` | HTML attributes for the file input, as for any widget |
 
-The upload view checks `max_size`, `accept` and `image`. The form field checks the file again when
-the form is submitted, so a model `ImageField` still validates the image and any validators on the
-field still run.
+The upload view checks `max_size`, `accept` and `image`. A file that comes with the form instead,
+because JavaScript didn't run or the upload hadn't finished, is checked by the widget against the
+same rules, and a file that breaks them is a validation error on the field. Either way, the form
+field checks the file again when the form is submitted, so a model `ImageField` still validates the
+image and any validators on the field still run.
 
 On an edit form, a field with a file shows it, with a preview for images. An optional field also
 shows a checkbox to clear it, which works the same as Django's `ClearableFileInput`: checking it
