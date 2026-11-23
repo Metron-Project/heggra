@@ -48,6 +48,19 @@ def _error(
     return response
 
 
+def too_large_message(text: str, max_size: int) -> str:
+    """Return ``text`` with its ``%(size)s`` placeholder replaced by ``max_size``, made readable.
+
+    A text that isn't a valid format string, such as one with a single ``%``, gets only its
+    placeholder replaced, rather than failing every page that renders the widget.
+    """
+    size = filesizeformat(max_size)
+    try:
+        return text % {"size": size}
+    except KeyError, TypeError, ValueError:
+        return text.replace("%(size)s", size)
+
+
 def validate(file: UploadedFile, rules: Rules, too_large_text: str | None = None) -> list[str]:
     """Return the reasons ``file`` breaks ``rules``, or an empty list if it doesn't.
 
@@ -57,7 +70,7 @@ def validate(file: UploadedFile, rules: Rules, too_large_text: str | None = None
     max_size = rules["max_size"]
     if max_size is not None and (file.size or 0) > max_size:
         text = too_large_text or _("The file can't be larger than %(size)s.")
-        return [text % {"size": filesizeformat(max_size)}]
+        return [too_large_message(text, max_size)]
     field = forms.ImageField() if rules["image"] else forms.FileField()
     if rules["accept"]:
         field.validators.append(FileExtensionValidator(rules["accept"]))

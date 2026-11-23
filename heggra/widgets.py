@@ -11,13 +11,12 @@ from django.core import signing
 from django.core.exceptions import ImproperlyConfigured, ValidationError
 from django.core.files.uploadedfile import UploadedFile
 from django.forms.widgets import FILE_INPUT_CONTRADICTION, CheckboxInput
-from django.template.defaultfilters import filesizeformat
 from django.urls import reverse
 from django.utils.datastructures import MultiValueDict
 from django.utils.translation import gettext_lazy as _
 
 from .storage import CONFIG_SALT, Rules, TemporaryUpload, open_token, upload_context
-from .views import validate
+from .views import too_large_message, validate
 
 
 class RefusedUpload:
@@ -202,7 +201,7 @@ class UploadWidget(forms.ClearableFileInput):
             max_size=self.max_size,
             remove_text=self.remove_text,
             too_large_text=self.max_size
-            and self.too_large_text % {"size": filesizeformat(self.max_size)},
+            and too_large_message(str(self.too_large_text), self.max_size),
             upload=upload
             and upload_context(upload.name or "", upload.size or 0, upload.token, rules),
             upload_url=reverse("heggra:upload"),

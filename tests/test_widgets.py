@@ -97,6 +97,23 @@ def test_too_large_text_reaches_the_upload_view():
     )
 
 
+@pytest.mark.parametrize(
+    ("text", "shown"),
+    [
+        ("Over %(size)s (100% of the limit)", "Over 10\xa0bytes (100% of the limit)"),
+        ("Over %(size)s, 100%% of it", "Over 10\xa0bytes, 100% of it"),
+    ],
+)
+def test_too_large_text_with_a_percent_sign(text, shown):
+    class Widget(UploadWidget):
+        too_large_text = text
+
+    html = Widget(max_size=10).render("doc", None)
+    assert f'data-heggra-too-large="{shown}"' in unescape(html)
+    file = text_file(content=b"x" * 20)
+    assert Widget(max_size=10).check("doc", file) == [shown]
+
+
 def test_render_image_accepts_images():
     html = DocumentForm()["cover"].as_widget()
     assert 'accept="image/*"' in html
