@@ -51,6 +51,12 @@ def test_max_size_must_be_positive(max_size):
         UploadWidget(max_size=max_size)
 
 
+@pytest.mark.parametrize("extension", ["", ".", ".."])
+def test_accept_needs_extensions(extension):
+    with pytest.raises(ValueError, match="empty extension"):
+        UploadWidget(accept=["pdf", extension])
+
+
 def test_render():
     html = DocumentForm()["attachment"].as_widget()
     assert 'class="heggra ' in html

@@ -72,6 +72,9 @@ class UploadWidget(forms.ClearableFileInput):
         self.image = image
         self.max_size = max_size
         self.accept = sorted({extension.lower().lstrip(".") for extension in accept})
+        # An empty extension would allow only files without one.
+        if "" in self.accept:
+            raise ValueError("UploadWidget's accept can't contain an empty extension.")
         self.classes = classes or {}
         # FileField.bound_data hands a bound form's initial value to the widget, so the widget
         # remembers what it read, the way ClearableFileInput remembers its checkbox.
